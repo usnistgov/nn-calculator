@@ -32,6 +32,7 @@ import {
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
 import {RegularizationFunction} from "./nn";
+import {AppendingNetworkEfficiency} from "./networkefficiency";
 import {AppendingHistogramChart} from "./histogramchart";
 import {type} from "os";
 
@@ -222,10 +223,22 @@ function makeGUI() {
 
 
   // compute network efficiency metrics and show histograms
-  d3.select("#data-metric-button").on("click", () => {
-    // compute metrics reflecting the NN configurations due to training/test data points
-    // and due to weight and bias histograms
-    let coeff = getNetworkInefficiencyPerLayer(network);
+  d3.select("#data-klmetric-button").on("click", () => {
+    // compute KL divergence metric reflecting the NN configurations (weights and biases) from training data points
+    // compute the network efficiency per layer
+    let numSamples: number = (state.problem === Problem.REGRESSION) ?
+        NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    let numEvalSamples: number = numSamples * state.percTrainData / 100;
+    let netKLcoef = new AppendingNetworkEfficiency();
+    let netEfficiency: number[] = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+
+    // print the histograms and create histogram visualization
+    let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency);
+    let kl_metric_result: string = hist.showKLHistogram();
+
+    kl_metric_result += '&nbsp; avg KL value:' + (Math.round(netKLcoef.getAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    let element = document.getElementById("KLdivergenceDiv");
+    element.innerHTML = kl_metric_result;
 
   });
 
@@ -1004,7 +1017,7 @@ function constructInputIds(): string[] {
   return result;
 }
 
-function constructInput(x: number, y: number): number[] {
+export function constructInput(x: number, y: number): number[] {
   let input: number[] = [];
   for (let inputName in INPUTS) {
     if (state[inputName]) {
@@ -1494,161 +1507,6 @@ function download(strData, strFileName, strMimeType) {
   }, 333);
   return true;
 } /* end download() */
-
-/* this method computes network inefficiency coefficients per layer */
-/**
- * This method compute the inefficiency coefficient of each network layer
- * @param network
- */
-export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
-  let netEfficiency: number[] = [];
-
-  /* configPts contains sequences of 0 and 1 (one per layer) that
-  * correspond to each node output being 0 or 1 depending on the input point
-  * mapGlobal contains the histogram of those sequences over all points per network layer  */
-  let mapGlobal = [];
-  for(let idx = 0; idx< network.length-1; idx++)
-    mapGlobal[idx] = new Map<string, number>();
-
-  let configPts;
-  // fins stats of imbalanced data
-  let countNOne: number = 0; //count minus one labeled training data points
-  let countPOne: number = 0; //count one labeled training data points
-  trainData.forEach((point, i) => {
-    let input = constructInput(point.x, point.y);
-    console.log('point:'+i +' val:' + input.toString() + ', label:' + point.label);
-    // compute the output configuration at each layer per point
-    configPts =  nn.forwardNetEval(network, input);
-    let output = nn.forwardProp(network, input);
-    // assign hard label based on the output probability
-    let label: string;
-    if(output<=0){
-      label = 'N';
-    }else{
-      label = 'P';
-    }
-    // count the ground truth labels
-    if(point.label <= 0 ){
-      countNOne++;
-    }else{
-      countPOne++;
-    }
-    console.log('configPts:'+configPts.toString() + ', prob label:' + output.toString() + ', resulting label:' + label.toString());
-
-    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
-      let temp = label + '-' +configPts[layerIdx - 1]; // configuration string
-      let flag = false;
-      if (mapGlobal[layerIdx - 1].size > 0) {
-        if (mapGlobal[layerIdx - 1].get(temp) > 0) {
-          flag = true;
-          //console.log('match: ' + temp + ', stored:' + mapGlobal[layerIdx-1].get(temp));
-        }
-      }
-      if (flag) {
-        mapGlobal[layerIdx - 1].set(temp, mapGlobal[layerIdx - 1].get(temp) + 1);
-      } else {
-        mapGlobal[layerIdx - 1].set(temp, 1);
-      }
-    }
-  });
-
-  // compute the network efficiency per layer
-  let numSamples: number  = (state.problem === Problem.REGRESSION) ?
-      NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
-  let numEvalSamples: number = numSamples * state.percTrainData / 100;
-
-  let avgKLdivergence = 0.0;  // this is to compute avg network KL divergence
-
-  for (let layerIdx = 0; layerIdx < network.length-1; layerIdx++) {
-    let currentLayerNodeCount = network[layerIdx+1].length;
-    // the number of 0 or 1 sequence outcomes from a layer with currentLayerNodeCount nodes is
-    // equal to 2^(currentLayerNodeCount ) .
-    let numBins: number  = Math.pow(2, currentLayerNodeCount );
-    let maxEntropy: number  = Math.log2(numBins);
-    console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
-
-    // define p_i for imbalanced classes
-    // This number is multiplied by 2 since the outcomes are associated with
-    // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
-    let refProb_NOne: number = 2 * (countNOne/numEvalSamples) * (1/numBins);
-    let refProb_POne: number = 2 * (countPOne/numEvalSamples) * (1/numBins);
-    console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ', refProb_NOne:'+refProb_NOne+', refProb_POne:' + refProb_POne);
-    //sanity check
-    if(refProb_NOne <= 0 || refProb_POne <= 0){
-      console.log('ERROR: training data contains only one label countNOne:' + countNOne + ', countPOne:' + countPOne + ', refProb_NOne:'+refProb_NOne+', refProb_POne:' + refProb_POne);
-      netEfficiency[layerIdx] = 0;
-      return null;
-    }
-    // might be removed
-    let samplesPerBin: number = numEvalSamples/numBins;
-    console.log('num eval samples:' + numEvalSamples + ', expected number of samples per bin:' + samplesPerBin);
-    // sanity check
-    if (samplesPerBin < 1) {
-      console.log('WARNING: there are more node outcomes (bins) than samples for numBins:' + numBins + ', numSamples:' + numSamples);
-      samplesPerBin = 1.0;
-    }
-
-    netEfficiency[layerIdx] = 0;
-    mapGlobal[layerIdx].forEach((value: number, key: string) => {
-      let prob = value/numEvalSamples;
-      console.log('inside:' + key, value, prob);
-      if(key.substr(0,1) === 'N'){
-        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_NOne);
-      }else{
-        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_POne);
-      }
-    });
-    //console.log('before final: layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx]);
-    //netEfficiency[layerIdx] = numBins * maxEntropy + netEfficiency[layerIdx];// -maxEntropy - netEfficiency[layerIdx]/numBins;
-    // sanity check
-    if(netEfficiency[layerIdx] < 0) {
-      console.log('ERROR: layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx] + ' is less or equal to zero');
-      netEfficiency[layerIdx] = 0;
-    }
-    console.log('layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx]);
-    avgKLdivergence = avgKLdivergence + netEfficiency[layerIdx] ;
-  }
-
-  avgKLdivergence = avgKLdivergence/netEfficiency.length;
-  console.log('avg network efficiency:' + (Math.round(avgKLdivergence * 100)/100).toString());
-
-  //////////////////////////////////////////////////////////////
-  // print the histograms and create histogram visualization
-  let x_axis: string[] = [];
-  let y_axis: number[] = [];
-  let x_bin: number[] = [];
-  let colorBar: string[] = [];
-  let index = 0;
-  let kl_metric_result: string = "&nbsp; Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
-
-  let hist = new AppendingHistogramChart();
-  for (let idx = 0; idx < network.length - 1; idx++) {
-    kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value:' + (Math.round(netEfficiency[idx] * 100)/100).toString() + "<BR>";
-    let localIdx = 0;
-    let temp = ((idx+1) * 100)%255;
-    //console.log('final histogram - layer:' + idx + ', color:' + temp.toString(10));
-    mapGlobal[idx].forEach((value: number, key: string) => {
-      console.log(key, value);
-      // TODO: sort the bin based on outcome or the first character of the key
-      
-      colorBar[index] = "rgba(100, " + temp.toString(10)  + ", 102, 0.7)";
-      x_bin[index] = index;
-      x_axis[index] = idx.toString()  + "-" + key;
-      y_axis[index] = value;
-      //console.log('index:' + index + ', x_axis:' + x_axis[index] + ', y_axis:' + y_axis[index]);
-      index++;
-      localIdx++;
-    });
-  }
-
-  hist.showOneHistogram(x_bin,x_axis, y_axis, colorBar);
-
-  kl_metric_result += '&nbsp; avg KL value:'+ (Math.round(avgKLdivergence * 1000)/1000).toString() + '<BR>';
-  let element = document.getElementById("KLdivergenceDiv");
-  element.innerHTML = kl_metric_result;
-
-  return netEfficiency;
-}
 
 
 drawDatasetThumbnails();

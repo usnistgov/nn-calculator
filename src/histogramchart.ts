@@ -9,32 +9,55 @@
  * A histogram chart that allows you to show the network output at each layer
  * given training data points
  *
+ *  * @author Peter Bajcsy
  * */
 export class AppendingHistogramChart {
 
-  private trace = [];
-  private numberHistograms: number;
-  private trace_index: number;
+  private x_axis: string[] = [];
+  private y_axis: number[] = [];
+  private x_bin: number[] = [];
+  private colorBar: string[] = [];
+  private kl_metric_result: string;
 
-  constructor( ) {
+
+  constructor(mapGlobal: object[], netEfficiency: number[] ) {
     this.reset();
-    this.trace_index = 0;
-    this.numberHistograms = 0;
+    // init the KL string
+    this.kl_metric_result = "&nbsp; Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
+    this.createHistogramInputs(mapGlobal, netEfficiency);
+
   }
 
   reset() {
-    this.trace = [];
-    this.trace_index = 0;
+    this.x_axis = null;
+    this.y_axis = null;
+    this.x_bin = null;
+    this.colorBar= null;
+    this.kl_metric_result = "";
   }
 
   /**
-   *    this is the main method for showing the histogram of node outputs
+   * This method is the main access point to the class for showing the plot
+   * it assumes that the class has been initiated and the method createHistogramInputs has been called
+   */
+  public showKLHistogram(): string {
+    //sanity check
+    if(this.x_bin == null || this.x_axis,this == null ||this.y_axis == null || this.colorBar == null){
+      console.log("ERROR: the KLHistogram class has not been initialized with the method createHistogramInputs");
+      return;
+    }
+    this.showOneHistogram(this.x_bin, this.x_axis,this.y_axis, this.colorBar);
+    return this.kl_metric_result;
+  }
+
+    /**
+   *    this method should be used only if you know how to prepare the histogram inputs
    * @param x_bin - numerical values for each bin ={1, 2, 3, ...|}
    * @param x_axis - string key for each bin description
    * @param y_axis - histogram counts
    * @param colorBar - color assign to each subset of bars
    */
-  public showOneHistogram(x_bin, x_axis, y_axis, colorBar:string[]){
+  private showOneHistogram(x_bin, x_axis, y_axis, colorBar:string[]){
     var trace = {
       x: x_bin,
       y: y_axis,
@@ -86,73 +109,36 @@ export class AppendingHistogramChart {
     Plotly.newPlot('histDiv', [trace], layout);
   }
 
-  public showStackedHistogram(){
+  private createHistogramInputs(mapGlobal, netEfficiency){
+    //////////////////////////////////////////////////////////////
+    // print the histograms and create histogram visualization
+    // init the arrays
+    this.x_axis = [];
+    this.y_axis = [];
+    this.x_bin = [];
+    this.colorBar= [];
 
-    var dataShow = [this.trace[0], this.trace[1], this.trace[2]];
+    let index = 0;
+    for (let idx = 0; idx < netEfficiency.length; idx++) {
+      //for (let idx = 0; idx < network_length - 1; idx++) {
+        this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value:' + (Math.round(netEfficiency[idx] * 100)/100).toString() + "<BR>";
+        let localIdx = 0;
+        let temp = ((idx+1) * 100)%255;
+        //console.log('final histogram - layer:' + idx + ', color:' + temp.toString(10));
+        mapGlobal[idx].forEach((value: number, key: string) => {
+          //console.log('key:'+key, ', value:' + value);
+          // TODO: sort the bin based on outcome or the first character of the key
 
-    console.log("dataShow has number of elements " + dataShow.length);
-
-/*    for (let idx = 0; idx < this.trace.length; idx++) {
-        dataShow.push(this.trace[idx]);
-    }*/
-/*    var layout = {
-      grid: {
-        rows: this.trace.length,
-        columns: 1,
-        pattern: 'independent',
-        roworder: 'bottom to top'
+          this.colorBar[index] = "rgba(100, " + temp.toString(10)  + ", 102, 0.7)";
+          this.x_bin[index] = index;
+          this.x_axis[index] = idx.toString()  + "-" + key;
+          this.y_axis[index] = value;
+          //console.log('index:' + index + ', x_axis:' + x_axis[index] + ', y_axis:' + y_axis[index]);
+          index++;
+          localIdx++;
+        });
       }
-    };*/
-   var layout = {
-      yaxis: {domain: [0, 0.33]},
-      legend: {traceorder: 'reversed'},
-      yaxis2: {domain: [0.33, 0.66]},
-      yaxis3: {domain: [0.66, 1]}
-    };
-    var Plotly = require('plotly.js-dist');
-    Plotly.newPlot('histDiv', dataShow, layout);
-  }
+    }
 
-  public addTraceData(layer_index, x_bin, x_axis, y_axis) {
-/*    if(this.trace_index >= this.numberHistograms){
-      console.log("cannot add more than " + this.numberHistograms + " to show" + " trace_index: " + this.trace_index);
-      return;
-    }*/
-    var trace = {
-      x: x_bin,
-      y: y_axis,
-      //y: y_axis,
-      name: 'histogram for layer:' + layer_index.toString(),
-      histfunc: "sum",
-      nbinsx: x_bin.length,
-      //histnorm: "count",
-      marker: {
-        color: "rgba(100, 255, 102, 0.7)",
-        line: {
-          color:  "rgba(255, 100, 102, 1)",
-          width: 1
-        }
-      },
-      hovertext: x_axis,
-      opacity: 0.5,
-      type: "histogram"
-    };
-/*    var layout = {
-      bargap: 0.05,
-      bargroupgap: 0.2,
-      //barmode: "overlay",
-      title: "Histogram for Layer:" + layer_index.toString(),
-      yaxis: {title: "Count"},
-      xaxis: {
-        title: "Node Outputs",
-        tickmode: "array", // If "array", the placement of the ticks is set via `tickvals` and the tick text is `ticktext`.
-        tickvals: x_bin,//[1, 2, 3, 4, 5, 6, 7, 8, 9],
-        ticktext: x_axis//['One', 'Three', 'Five', 'Seven', 'Nine', 'Eleven']
-      }
-    };*/
 
-    this.trace[this.trace_index]= trace;
-    this.trace_index++;
-
-  }
 }
