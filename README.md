@@ -1,8 +1,22 @@
-# Deep playground
+# TrojAI deep playground
 
-Deep playground is an interactive visualization of neural networks, written in
-TypeScript using d3.js. We use GitHub issues for tracking new requests and bugs.
-Your feedback is highly appreciated!
+TrojAI Deep playground is an interactive visualization of neural networks, written in
+TypeScript using d3.js and Plotly.js. It is built on top of the GitHub project
+called Deep playground - https://github.com/tensorflow/playground.
+
+The  purpose of TrojAI deep playground is to derive neural network metrics
+that could detect presence of trojans in neural network models. In addition to the original 
+deep playground code, the current prototype enables 
+- adding trojans to test data sets (Trojan slider bar)
+- computing inefficiency metrics per layer (INEFFICIENCY button)
+- storing baseline model consisting of weights and biases (BASELINE button)
+- showing difference between baseline and current models (COMPARE button)
+- saving a model to dist (SAVE button)
+
+Original Deep playground README text is below.
+
+# Deep playground
+Deep playground is an interactive visualization of neural networks, written in TypeScript using d3.js. We use GitHub issues for tracking new requests and bugs. Your feedback is highly appreciated!
 
 **If you'd like to contribute, be sure to review the [contribution guidelines](CONTRIBUTING.md).**
 

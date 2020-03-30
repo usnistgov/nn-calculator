@@ -1497,7 +1497,7 @@ function download(strData, strFileName, strMimeType) {
 
 /* this method computes network inefficiency coefficients per layer */
 /**
- *
+ * This method compute the inefficiency coefficient of each network layer
  * @param network
  */
 export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
@@ -1512,22 +1512,26 @@ export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
 
   let configPts;
   // fins stats of imbalanced data
-  let countZero: number = 0; //count zero labeled training data points
-  let countOne: number = 0; //count one labeled training data points
+  let countNOne: number = 0; //count minus one labeled training data points
+  let countPOne: number = 0; //count one labeled training data points
   trainData.forEach((point, i) => {
     let input = constructInput(point.x, point.y);
-    console.log('point:'+i +' val:' + input.toString());
+    console.log('point:'+i +' val:' + input.toString() + ', label:' + point.label);
     // compute the output configuration at each layer per point
     configPts =  nn.forwardNetEval(network, input);
     let output = nn.forwardProp(network, input);
     // assign hard label based on the output probability
-    let label: number;
+    let label: string;
     if(output<=0){
-      label = 0;
-      countZero ++;
+      label = 'N';
     }else{
-      label=1;
-      countOne++;
+      label = 'P';
+    }
+    // count the ground truth labels
+    if(point.label <= 0 ){
+      countNOne++;
+    }else{
+      countPOne++;
     }
     console.log('configPts:'+configPts.toString() + ', prob label:' + output.toString() + ', resulting label:' + label.toString());
 
@@ -1566,10 +1570,15 @@ export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
     // define p_i for imbalanced classes
     // This number is multiplied by 2 since the outcomes are associated with
     // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
-    let refProb_zero: number = 2 * (countZero/numEvalSamples) * (1/numBins);
-    let refProb_one: number = 2 * (countOne/numEvalSamples) * (1/numBins);
-    console.log('countZero:' + countZero + ', countOne:' + countOne + ', refProb_zero:'+refProb_zero+', refProb_one:' + refProb_one);
-
+    let refProb_NOne: number = 2 * (countNOne/numEvalSamples) * (1/numBins);
+    let refProb_POne: number = 2 * (countPOne/numEvalSamples) * (1/numBins);
+    console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ', refProb_NOne:'+refProb_NOne+', refProb_POne:' + refProb_POne);
+    //sanity check
+    if(refProb_NOne <= 0 || refProb_POne <= 0){
+      console.log('ERROR: training data contains only one label countNOne:' + countNOne + ', countPOne:' + countPOne + ', refProb_NOne:'+refProb_NOne+', refProb_POne:' + refProb_POne);
+      netEfficiency[layerIdx] = 0;
+      return null;
+    }
     // might be removed
     let samplesPerBin: number = numEvalSamples/numBins;
     console.log('num eval samples:' + numEvalSamples + ', expected number of samples per bin:' + samplesPerBin);
@@ -1583,10 +1592,10 @@ export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
     mapGlobal[layerIdx].forEach((value: number, key: string) => {
       let prob = value/numEvalSamples;
       console.log('inside:' + key, value, prob);
-      if(key.substr(0,1) === '0'){
-        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_zero);
+      if(key.substr(0,1) === 'N'){
+        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_NOne);
       }else{
-        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_one);
+        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_POne);
       }
     });
     //console.log('before final: layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx]);
@@ -1610,7 +1619,7 @@ export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
   let x_bin: number[] = [];
   let colorBar: string[] = [];
   let index = 0;
-  let kl_metric_result: string = "&nbsp; Kullback–Leibler divergence (smaller value -> more utilized layer) <BR>";
+  let kl_metric_result: string = "&nbsp; Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
 
   let hist = new AppendingHistogramChart();
   for (let idx = 0; idx < network.length - 1; idx++) {
@@ -1634,7 +1643,7 @@ export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
 
   hist.showOneHistogram(x_bin,x_axis, y_axis, colorBar);
 
-  kl_metric_result += '&nbsp; avg KL value:'+ avgKLdivergence + '<BR>';
+  kl_metric_result += '&nbsp; avg KL value:'+ (Math.round(avgKLdivergence * 1000)/1000).toString() + '<BR>';
   let element = document.getElementById("KLdivergenceDiv");
   element.innerHTML = kl_metric_result;
 
