@@ -12,7 +12,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+// added to support read and write
+//import * as fs from 'fs';
 
+//import Plotly from 'plotly.js-dist';
+import * as d3 from 'd3';
 import * as nn from "./nn";
 import {HeatMap, reduceMatrix} from "./heatmap";
 import {
@@ -27,9 +31,14 @@ import {
 } from "./state";
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
-import * as d3 from 'd3';
+import {RegularizationFunction} from "./nn";
+import {AppendingHistogramChart} from "./histogramchart";
+import {type} from "os";
 
 let mainWidth;
+
+let baseline_weights: number[] = null; // used by baseline model
+let baseline_biases: number[] = null; // used by baseline model
 
 // More scrolling
 d3.select(".more button").on("click", function() {
@@ -70,7 +79,11 @@ let INPUTS: {[name: string]: InputFeature} = {
   "xTimesY": {f: (x, y) => x * y, label: "X_1X_2"},
   "sinX": {f: (x, y) => Math.sin(x), label: "sin(X_1)"},
   "sinY": {f: (x, y) => Math.sin(y), label: "sin(X_2)"},
+  "sinXTimesY": {f: (x, y) => Math.sin(x * y), label: "sin(X_1X_2)"},
+  "cir": {f: (x, y) => Math.sin(x*x + y*y), label: "cir(0,r)"},
+  "add": {f: (x, y) => x + y, label: "add(x,y)"},
 };
+
 
 let HIDABLE_CONTROLS = [
   ["Show test data", "showTestData"],
@@ -86,6 +99,7 @@ let HIDABLE_CONTROLS = [
   ["Which dataset", "dataset"],
   ["Ratio train data", "percTrainData"],
   ["Noise level", "noise"],
+  ["Trojan level", "trojan"],
   ["Batch size", "batchSize"],
   ["# of hidden layers", "numHiddenLayers"],
 ];
@@ -206,6 +220,78 @@ function makeGUI() {
     parametersChanged = true;
   });
 
+
+  // compute network efficiency metrics and show histograms
+  d3.select("#data-metric-button").on("click", () => {
+    // compute metrics reflecting the NN configurations due to training/test data points
+    // and due to weight and bias histograms
+    let coeff = getNetworkInefficiencyPerLayer(network);
+
+  });
+
+
+  // store weights and biases for the baseline network
+  d3.select("#data-baseline-button").on("click", () => {
+    baseline_weights = getOutputWeights(network);
+    baseline_biases = getOutputBiases(network);
+  });
+
+  // compare the baseline weights and biases with the current ones
+  d3.select("#data-compare-button").on("click", () => {
+
+    if(baseline_weights == null || baseline_biases == null){
+      console.log('ERROR: missing baseline weights and biases');
+      return;
+    }
+    let weights: number[]; //Array<number>;
+    weights = getOutputWeights(network);
+    if(baseline_weights.length != weights.length){
+      console.log('ERROR: baseline network architecture is different from the current architecture');
+      console.log('number of baseline weights:' + baseline_weights.length + ', number of current weights: ' +weights.length);
+      return;
+    }
+
+    for(let i = 0; i < weights.length; i++){
+      weights[i] = weights[i] - baseline_weights[i];
+      console.log('delta weight[' + (i) + ']:'  + weights[i]);
+    }
+
+    let biases: number[]; //Array<number>;
+    biases = getOutputBiases(network);
+    if(baseline_biases.length != biases.length){
+      console.log('ERROR: baseline network architecture is different from the current architecture');
+      console.log('number of baseline biases:' + baseline_biases.length + ', number of current biases: ' +biases.length);
+      return;
+    }
+    for(let j = 0; j < biases.length; j++){
+      biases[j] = biases[j] - baseline_biases[j];
+      console.log('delta bias[' + (j) + ']:' + biases[j]);
+    }
+
+
+    if( !setOutputWeights(network, weights)){
+      console.log('ERROR: failed to update weights');
+    }
+    if( !setOutputBiases(network, biases) ){
+      console.log('ERROR: failed to update biases');
+    }
+
+    let firstStep = false;
+    updateUI(firstStep = false);
+
+    //writeNetwork(network);
+  });
+
+  // save the current model to a CSV file
+  // links of interest
+  // https://github.com/microsoft/onnxjs
+  // resnet50 demo using ONNX.js - https://microsoft.github.io/onnxjs-demo/#/resnet50
+  // we need a write in JavaScript - https://github.com/onnx/tutorials
+  d3.select("#data-save-button").on("click", () => {
+    writeNetwork(network);
+  });
+
+
   let dataThumbnails = d3.selectAll("canvas[data-dataset]");
   dataThumbnails.on("click", function() {
     let newDataset = datasets[this.dataset.dataset];
@@ -312,6 +398,28 @@ function makeGUI() {
   noise.property("value", state.noise);
   d3.select("label[for='noise'] .value").text(state.noise);
 
+	// added trojan = number of randomly selected points switching labels
+  let trojan = d3.select("#trojan").on("input", function() {
+    state.trojan = this.value;
+    d3.select("label[for='trojan'] .value").text(this.value);
+	// to swap randomly labels
+    swapDataLabels();
+    parametersChanged = true;
+    reset();
+  });
+  let currentTrojanMax = parseInt(trojan.property("max"));
+  if (state.trojan > currentTrojanMax) {
+    if (state.trojan <= 8) {
+      trojan.property("max", state.trojan);
+    } else {
+      state.trojan = 1;
+    }
+  } else if (state.trojan < 0) {
+    state.trojan = 0;
+  }
+  trojan.property("value", state.trojan);
+  d3.select("label[for='trojan'] .value").text(state.trojan);
+  
   let batchSize = d3.select("#batchSize").on("input", function() {
     state.batchSize = this.value;
     d3.select("label[for='batchSize'] .value").text(this.value);
@@ -922,19 +1030,221 @@ function oneStep(): void {
   updateUI();
 }
 
+// get network weights
 export function getOutputWeights(network: nn.Node[][]): number[] {
   let weights: number[] = [];
   for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
     let currentLayer = network[layerIdx];
+    let minLayer = 10.0;
+    let maxLayer = -10.0;
+    let closeToZero = 10.0;
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
       for (let j = 0; j < node.outputs.length; j++) {
         let output = node.outputs[j];
         weights.push(output.weight);
+        /////////////
+        // added to compute min and max - TODO simplify the code
+        if (minLayer > output.weight) {
+          minLayer = output.weight;
+        }
+        if (maxLayer < output.weight) {
+          maxLayer = output.weight;
+        }
+        if (closeToZero > Math.abs(output.weight)) {
+          closeToZero = Math.abs(output.weight);
+        }
+      }
+    }
+    console.log("layer:" + layerIdx + " minWWeight:" + minLayer + " maxWeight:" + maxLayer + " closeToZero:" + closeToZero);
+
+    // TODO add the computation of average sparsity per node
+    let sparsityLayer = 0.0;
+    let number_of_links = 0;
+    let maxAbsWeight = 0.0;
+    if (Math.abs(minLayer) > Math.abs(maxLayer)) {
+      maxAbsWeight = Math.abs(minLayer);
+    } else {
+      maxAbsWeight = Math.abs(maxLayer);
+    }
+    let percentWeightThresh = 0.1 * maxAbsWeight;
+    console.log("layer:" + layerIdx + " maxAbsWWeight:" + maxAbsWeight + " percentWeightThresh:" + percentWeightThresh );
+
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      let sparsityNode = 0.0;
+      for (let j = 0; j < node.outputs.length; j++) {
+        let output = node.outputs[j];
+        if (Math.abs(output.weight) < percentWeightThresh) {
+          sparsityNode = sparsityNode + 1;
+        }
+      }
+      sparsityLayer = sparsityLayer + sparsityNode;
+      number_of_links = number_of_links + node.outputs.length;
+      // sparsity per node = percent of weights leaving the layer
+      // that are less than 10 % of the abs max weight value per layer
+      // this implies that a node should be removed/pruned if the value approaches one
+      sparsityNode = sparsityNode / node.outputs.length;
+      console.log("node:" + i + " sparsityNode:"+sparsityNode);
+    }
+    // this is the sparsity per layer = percent of weight leaving all nodes
+    // that are less than 10 % of the abs max weight value per layer
+    // this implies that the layer (i.e., a set of nodes) is not efficiently utilized
+    sparsityLayer = sparsityLayer/number_of_links;
+    console.log("layer:" + layerIdx + " sparsityLayer:"+sparsityLayer);
+  }
+  return weights;
+}
+
+// set network weights
+export function setOutputWeights(network: nn.Node[][], weights: number[]): boolean {
+  //let weights: number[] = [];
+  let idx = 0;
+  for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      for (let j = 0; j < node.outputs.length; j++) {
+        if(idx< weights.length) {
+          node.outputs[j].weight = weights[idx];
+          idx = idx + 1;
+        }else{
+          console.log("ERROR: mismatch of baseline and current network weights");
+          return false;
+        }
+        //let output = node.outputs[j];
+        //weights.push(output.weight);
       }
     }
   }
+  return true;
+}
+
+// this method prepares all data for saving a network model
+export function getWriteNetworkData(network: nn.Node[][]): string {
+  let weights: string;
+  let curState: State = State.deserializeState();
+
+  weights = "problem:";
+  if (curState.problem === Problem.CLASSIFICATION) {
+    weights += "classification" + "\n";
+  }else{
+    weights += "regression" + "\n";
+  }
+
+  weights += "number of samples:";
+  (curState.problem === Problem.REGRESSION) ?  weights += NUM_SAMPLES_REGRESS + "\n" : weights += NUM_SAMPLES_CLASSIFY + "\n";
+
+  weights += "noise:" + curState.noise + "\n";
+  weights += "trojan:" + curState.trojan + "\n";
+
+  if (curState.activation === nn.Activations.TANH) {
+    weights += "activation:" + "TANH" + "\n";
+  }else{
+    if (curState.activation === nn.Activations.RELU) {
+      weights += "activation:" + "RELU" + "\n";
+    }else {
+      if (curState.activation === nn.Activations.LINEAR) {
+        weights += "activation:" + "LINEAR" + "\n";
+      } else {
+        weights += "activation:" + "SIGMOID" + "\n";
+      }
+    }
+  }
+
+  if (curState.regularization === RegularizationFunction.L1) {
+    weights += "regularization:" + "L1" + "\n";
+  }else{
+    if (curState.regularization === RegularizationFunction.L2) {
+      weights += "regularization:" + 'L2' + "\n";
+    }else{
+        weights += "regularization:" + "None" + "\n";
+      }
+  }
+  weights += "regularization Rate:" + curState.regularizationRate + "\n";
+
+  weights += "batch size:" + curState.batchSize + "\n";
+  weights += "learning Rate:" + curState.learningRate + "\n";
+  weights += "percent Train Data:" + curState.percTrainData + "\n";
+
+  weights += "seed:" + curState.seed + "\n";
+
+  weights += "input Data x:" + curState.x + "\n";
+  weights += "input Data y:" + curState.y + "\n";
+  weights += "input Data sinX:" + curState.sinX + "\n";
+  weights += "input Data X^2:" + curState.xSquared + "\n";
+  weights += "input Data Y^2:" + curState.ySquared + "\n";
+  weights += "input Data sinY:" + curState.sinY + "\n";
+  weights += "input Data XtimesY:" + curState.xTimesY + "\n";
+  weights += "input Data cosX:" + curState.cosX + "\n";
+  weights += "input Data cosY:" + curState.cosY + "\n";
+  weights += "input Data add:" + curState.add + "\n";
+  weights += "Input Data cir:" + curState.cir + "\n";
+
+  weights += "num Hidden Layers:" + curState.numHiddenLayers + "\n";
+  weights += "\n";
+  ////////////////////////////
+  weights += "network length:" + network.length + "\n";
+  for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    weights += "currentLayer:" + layerIdx + ", currentLayer length:" + currentLayer.length + "\n";
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      let bias = node.bias;
+      weights += "node:" +  i +", bias:" + bias + ", node length of outputs:" + node.outputs.length + "\n";
+      for (let j = 0; j < node.outputs.length; j++) {
+        let output = node.outputs[j];
+        weights += "weight:" + output.weight;
+        if(j != node.outputs.length-1)
+          weights += ", ";
+        else
+          weights += "\n";
+      }
+    }
+  }
+
+  // add input data
+  if (curState.problem === Problem.CLASSIFICATION) {
+    weights += "\n" + "Data set:" + curState.dataset + "\n";
+  }else{
+    weights += "\n" + "Data set:" + curState.regDataset + "\n";
+  }
+
   return weights;
+}
+// get the current network biases
+export function getOutputBiases(network: nn.Node[][]): number[] {
+  let biases: number[] = [];
+  for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      let output = node.bias;
+        biases.push(output);
+    }
+  }
+  return biases;
+}
+// set the network biases
+export function setOutputBiases(network: nn.Node[][], biases: number[]): boolean {
+  //let biases: number[] = [];
+  let idx = 0;
+  for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      if(idx<biases.length) {
+        node.bias = biases[idx];
+        idx = idx + 1;
+      }else{
+        console.log("ERROR: mismatch in baseline and current network biases");
+        return false;
+      }
+      //let output = node.bias;
+      //biases.push(output);
+    }
+  }
+  return true;
 }
 
 function reset(onStartup=false) {
@@ -1076,7 +1386,30 @@ function generateData(firstTime = false) {
       NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
   let generator = state.problem === Problem.CLASSIFICATION ?
       state.dataset : state.regDataset;
-  let data = generator(numSamples, state.noise / 100);
+  let data = generator(numSamples, state.noise / 100, state.trojan);
+  // Shuffle the data in-place.
+  shuffle(data);
+  // Split into train and test data.
+  let splitIndex = Math.floor(data.length * state.percTrainData / 100);
+  trainData = data.slice(0, splitIndex);
+  testData = data.slice(splitIndex);
+  heatMap.updatePoints(trainData);
+  heatMap.updateTestPoints(state.showTestData ? testData : []);
+}
+
+function swapDataLabels(firstTime = false) {
+  if (!firstTime) {
+    // Change the seed.
+    state.seed = Math.random().toFixed(5);
+    state.serialize();
+    userHasInteracted();
+  }
+  Math.seedrandom(state.seed);
+  let numSamples = (state.problem === Problem.REGRESSION) ?
+      NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  let generator = state.problem === Problem.CLASSIFICATION ?
+      state.dataset : state.regDataset;
+  let data = generator(numSamples, state.noise / 100, state.trojan );
   // Shuffle the data in-place.
   shuffle(data);
   // Split into train and test data.
@@ -1112,6 +1445,202 @@ function simulationStarted() {
   });
   parametersChanged = false;
 }
+
+/////////////////////////////////////////
+// TODO figure out how to format to follow the ONNX standard
+function writeNetwork(network: nn.Node[][]) {
+
+  let content: string;
+  content = getWriteNetworkData(network);
+  let filename: string = "networkModel.csv";
+  let strMimeType: string = "text/csv";//"application/octet-stream";
+  download(content, filename, strMimeType);
+}
+
+
+// current work: https://stackoverflow.com/questions/16376161/javascript-set-filename-to-be-downloaded/16377813
+// future work: integrate https://github.com/rndme/download/blob/master/download.js
+function download(strData, strFileName, strMimeType) {
+  let D = document,
+      a = D.createElement("a");
+  strMimeType= strMimeType || "application/octet-stream";
+
+
+  if (navigator.msSaveBlob) { // IE10
+    return navigator.msSaveBlob(new Blob([strData], {type: strMimeType}), strFileName);
+  } /* end if(navigator.msSaveBlob) */
+
+
+  if ('download' in a) { //html5 A[download]
+    a.href = "data:" + strMimeType + "," + encodeURIComponent(strData);
+    a.setAttribute("download", strFileName);
+    a.innerHTML = "downloading...";
+    D.body.appendChild(a);
+    setTimeout(function() {
+      a.click();
+      D.body.removeChild(a);
+    }, 66);
+    return true;
+  } /* end if('download' in a) */
+
+
+  //do iframe dataURL download (old ch+FF):
+  let f = D.createElement("iframe");
+  D.body.appendChild(f);
+  f.src = "data:" +  strMimeType   + "," + encodeURIComponent(strData);
+
+  setTimeout(function() {
+    D.body.removeChild(f);
+  }, 333);
+  return true;
+} /* end download() */
+
+/* this method computes network inefficiency coefficients per layer */
+/**
+ *
+ * @param network
+ */
+export function getNetworkInefficiencyPerLayer(network: nn.Node[][]): number[] {
+  let netEfficiency: number[] = [];
+
+  /* configPts contains sequences of 0 and 1 (one per layer) that
+  * correspond to each node output being 0 or 1 depending on the input point
+  * mapGlobal contains the histogram of those sequences over all points per network layer  */
+  let mapGlobal = [];
+  for(let idx = 0; idx< network.length-1; idx++)
+    mapGlobal[idx] = new Map<string, number>();
+
+  let configPts;
+  // fins stats of imbalanced data
+  let countZero: number = 0; //count zero labeled training data points
+  let countOne: number = 0; //count one labeled training data points
+  trainData.forEach((point, i) => {
+    let input = constructInput(point.x, point.y);
+    console.log('point:'+i +' val:' + input.toString());
+    // compute the output configuration at each layer per point
+    configPts =  nn.forwardNetEval(network, input);
+    let output = nn.forwardProp(network, input);
+    // assign hard label based on the output probability
+    let label: number;
+    if(output<=0){
+      label = 0;
+      countZero ++;
+    }else{
+      label=1;
+      countOne++;
+    }
+    console.log('configPts:'+configPts.toString() + ', prob label:' + output.toString() + ', resulting label:' + label.toString());
+
+    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+      let temp = label + '-' +configPts[layerIdx - 1]; // configuration string
+      let flag = false;
+      if (mapGlobal[layerIdx - 1].size > 0) {
+        if (mapGlobal[layerIdx - 1].get(temp) > 0) {
+          flag = true;
+          //console.log('match: ' + temp + ', stored:' + mapGlobal[layerIdx-1].get(temp));
+        }
+      }
+      if (flag) {
+        mapGlobal[layerIdx - 1].set(temp, mapGlobal[layerIdx - 1].get(temp) + 1);
+      } else {
+        mapGlobal[layerIdx - 1].set(temp, 1);
+      }
+    }
+  });
+
+  // compute the network efficiency per layer
+  let numSamples: number  = (state.problem === Problem.REGRESSION) ?
+      NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  let numEvalSamples: number = numSamples * state.percTrainData / 100;
+
+  let avgKLdivergence = 0.0;  // this is to compute avg network KL divergence
+
+  for (let layerIdx = 0; layerIdx < network.length-1; layerIdx++) {
+    let currentLayerNodeCount = network[layerIdx+1].length;
+    // the number of 0 or 1 sequence outcomes from a layer with currentLayerNodeCount nodes is
+    // equal to 2^(currentLayerNodeCount ) .
+    let numBins: number  = Math.pow(2, currentLayerNodeCount );
+    let maxEntropy: number  = Math.log2(numBins);
+    console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
+
+    // define p_i for imbalanced classes
+    // This number is multiplied by 2 since the outcomes are associated with
+    // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
+    let refProb_zero: number = 2 * (countZero/numEvalSamples) * (1/numBins);
+    let refProb_one: number = 2 * (countOne/numEvalSamples) * (1/numBins);
+    console.log('countZero:' + countZero + ', countOne:' + countOne + ', refProb_zero:'+refProb_zero+', refProb_one:' + refProb_one);
+
+    // might be removed
+    let samplesPerBin: number = numEvalSamples/numBins;
+    console.log('num eval samples:' + numEvalSamples + ', expected number of samples per bin:' + samplesPerBin);
+    // sanity check
+    if (samplesPerBin < 1) {
+      console.log('WARNING: there are more node outcomes (bins) than samples for numBins:' + numBins + ', numSamples:' + numSamples);
+      samplesPerBin = 1.0;
+    }
+
+    netEfficiency[layerIdx] = 0;
+    mapGlobal[layerIdx].forEach((value: number, key: string) => {
+      let prob = value/numEvalSamples;
+      console.log('inside:' + key, value, prob);
+      if(key.substr(0,1) === '0'){
+        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_zero);
+      }else{
+        netEfficiency[layerIdx] = netEfficiency[layerIdx] + prob*Math.log2(prob/refProb_one);
+      }
+    });
+    //console.log('before final: layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx]);
+    //netEfficiency[layerIdx] = numBins * maxEntropy + netEfficiency[layerIdx];// -maxEntropy - netEfficiency[layerIdx]/numBins;
+    // sanity check
+    if(netEfficiency[layerIdx] < 0) {
+      console.log('ERROR: layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx] + ' is less or equal to zero');
+      netEfficiency[layerIdx] = 0;
+    }
+    console.log('layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx]);
+    avgKLdivergence = avgKLdivergence + netEfficiency[layerIdx] ;
+  }
+
+  avgKLdivergence = avgKLdivergence/netEfficiency.length;
+  console.log('avg network efficiency:' + (Math.round(avgKLdivergence * 100)/100).toString());
+
+  //////////////////////////////////////////////////////////////
+  // print the histograms and create histogram visualization
+  let x_axis: string[] = [];
+  let y_axis: number[] = [];
+  let x_bin: number[] = [];
+  let colorBar: string[] = [];
+  let index = 0;
+  let kl_metric_result: string = "&nbsp; Kullback–Leibler divergence (smaller value -> more utilized layer) <BR>";
+
+  let hist = new AppendingHistogramChart();
+  for (let idx = 0; idx < network.length - 1; idx++) {
+    kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value:' + (Math.round(netEfficiency[idx] * 100)/100).toString() + "<BR>";
+    let localIdx = 0;
+    let temp = ((idx+1) * 100)%255;
+    //console.log('final histogram - layer:' + idx + ', color:' + temp.toString(10));
+    mapGlobal[idx].forEach((value: number, key: string) => {
+      console.log(key, value);
+      // TODO: sort the bin based on outcome or the first character of the key
+      
+      colorBar[index] = "rgba(100, " + temp.toString(10)  + ", 102, 0.7)";
+      x_bin[index] = index;
+      x_axis[index] = idx.toString()  + "-" + key;
+      y_axis[index] = value;
+      //console.log('index:' + index + ', x_axis:' + x_axis[index] + ', y_axis:' + y_axis[index]);
+      index++;
+      localIdx++;
+    });
+  }
+
+  hist.showOneHistogram(x_bin,x_axis, y_axis, colorBar);
+
+  kl_metric_result += '&nbsp; avg KL value:'+ avgKLdivergence + '<BR>';
+  let element = document.getElementById("KLdivergenceDiv");
+  element.innerHTML = kl_metric_result;
+
+  return netEfficiency;
+}
+
 
 drawDatasetThumbnails();
 initTutorial();

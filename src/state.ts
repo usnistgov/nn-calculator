@@ -126,6 +126,9 @@ export class State {
     {name: "sinX", type: Type.BOOLEAN},
     {name: "cosY", type: Type.BOOLEAN},
     {name: "sinY", type: Type.BOOLEAN},
+	{name: "sinXTimesY", type: Type.BOOLEAN},
+	{name: "cir", type: Type.BOOLEAN},
+	{name: "add", type: Type.BOOLEAN},
     {name: "collectStats", type: Type.BOOLEAN},
     {name: "tutorial", type: Type.STRING},
     {name: "problem", type: Type.OBJECT, keyMap: problems},
@@ -138,6 +141,7 @@ export class State {
   regularizationRate = 0;
   showTestData = false;
   noise = 0;
+  trojan = 0;
   batchSize = 10;
   discretize = false;
   tutorial: string = null;
@@ -160,6 +164,9 @@ export class State {
   sinX = false;
   cosY = false;
   sinY = false;
+  sinXTimesY = false;
+  cir = false;
+  add = false;
   dataset: dataset.DataGenerator = dataset.classifyCircleData;
   regDataset: dataset.DataGenerator = dataset.regressPlane;
   seed: string;

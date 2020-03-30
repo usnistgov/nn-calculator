@@ -37,8 +37,18 @@ limitations under the License.
   <meta name="author" content="Daniel Smilkov and Shan Carter">
   <title>A Neural Network Playground</title>
   <link rel="stylesheet" href="bundle.css" type="text/css">
+
+  <!-- TODO replace with local libraries so that it can run without internet -->
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet" type="text/css">
   <script src="lib.js"></script>
+  <!-- <script src="plotly-latest.min.js"></script> -->
+
+  <style type="text/css">
+    #histDiv {
+      max-width: 900px;
+      max-height: 600px;
+    }
+  </style>
 </head>
 <body>
   <!-- GitHub link -->
@@ -49,9 +59,11 @@ limitations under the License.
     </svg>
   </a>
   <!-- Header -->
+  <!--
   <header>
     <h1 class="l--page">Tinker With a <b>Neural Network</b> <span class="optional">Right Here </span>in Your Browser.<br>Don’t Worry, You Can’t Break It. We Promise.</h1>
   </header>
+	-->
 
   <!-- Top Controls -->
   <div id="top-controls">
@@ -184,15 +196,33 @@ limitations under the License.
             <input class="mdl-slider mdl-js-slider" type="range" id="noise" min="0" max="50" step="5">
           </p>
         </div>
+        <div class="ui-troj">
+          <label for="trojan">Trojan:&nbsp;&nbsp;<span class="value">XX</span></label>
+          <p class="slider">
+            <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="8" step="1">
+          </p>
+        </div>		
         <div class="ui-batchSize">
           <label for="batchSize">Batch size:&nbsp;&nbsp;<span class="value">XX</span></label>
           <p class="slider">
             <input class="mdl-slider mdl-js-slider" type="range" id="batchSize" min="1" max="30" step="1">
           </p>
         </div>
-          <button class="basic-button" id="data-regen-button" title="Regenerate data">
-            Regenerate
-          </button>
+        <button class="basic-button" id="data-metric-button" title="Compute NN Metric">
+          NN Metric
+        </button>
+          <button class="basic-button" id="data-baseline-button" title="Store baseline">
+            Baseline
+        </button>
+        <button class="basic-button" id="data-compare-button" title="Compare to baseline">
+            Compare
+        </button>
+        <button class="basic-button" id="data-save-button" title="Save data">
+          Save
+        </button>
+        <button class="basic-button" id="data-regen-button" title="Regenerate data">
+          Regenerate
+        </button>
       </div>
     </div>
 
@@ -310,15 +340,31 @@ limitations under the License.
 
   </div>
 
+  &nbsp;
+  <div id='histDiv'>
+    <!-- Plotly chart will be drawn inside this DIV -->
+  </div>
+
+
+  &nbsp;
+  <div id='KLdivergenceDiv'>
+      <!-- insert the KL divergence metric per layer of a network -->
+  </div>
+
+  <BR>
+  <BR>
+  <BR>
+
   <!-- More -->
+<!--
   <div class="more">
-    <!-- <button class="mdl-button mdl-js-button mdl-button--icon"><i class="material-icons">keyboard_arrow_down</i></button> -->
     <button class="mdl-button mdl-js-button mdl-button--fab">
       <i class="material-icons">keyboard_arrow_down</i>
     </button>
   </div>
+-->
   <!-- Article -->
-
+  <!--
   <article id="article-text">
     <div class="l--body">
       <h2>Um, What Is a Neural Network?</h2>
@@ -351,7 +397,7 @@ limitations under the License.
     <div class="l--body">
       <h2>Credits</h2>
       <p>
-        This was created by Daniel Smilkov and Shan Carter.
+        This was created by Daniel Smilkov and Shan Carter. Additional features for Trojan AI were added by Peter Bajcsy.
         This is a continuation of many people’s previous work — most notably Andrej Karpathy’s <a href="http://cs.stanford.edu/people/karpathy/convnetjs/demo/classify2d.html">convnet.js demo</a>
         and Chris Olah’s <a href="http://colah.github.io/posts/2014-03-NN-Manifolds-Topology/">articles</a> about neural networks.
         Many thanks also to D. Sculley for help with the original idea and to Fernanda Viégas and Martin Wattenberg and the rest of the
@@ -359,8 +405,10 @@ limitations under the License.
       </p>
     </div>
   </article>
+-->
 
   <!-- Footer -->
+<!--
   <footer>
     <div class="l--body">
       <a href="https://www.tensorflow.org/" class="logo">
@@ -394,6 +442,7 @@ limitations under the License.
       </div>
     </div>
   </footer>
+  -->
   <script src="bundle.js"></script>
   <!-- Google analytics -->
   <script src="analytics.js"></script>

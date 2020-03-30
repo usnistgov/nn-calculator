@@ -50,9 +50,9 @@ export function shuffle(array: any[]): void {
   }
 }
 
-export type DataGenerator = (numSamples: number, noise: number) => Example2D[];
+export type DataGenerator = (numSamples: number, noise: number, trojan: number) => Example2D[];
 
-export function classifyTwoGaussData(numSamples: number, noise: number):
+export function classifyTwoGaussData(numSamples: number, noise: number, trojan: number):
     Example2D[] {
   let points: Example2D[] = [];
 
@@ -69,10 +69,13 @@ export function classifyTwoGaussData(numSamples: number, noise: number):
 
   genGauss(2, 2, 1); // Gaussian with positive examples.
   genGauss(-2, -2, -1); // Gaussian with negative examples.
+  // add trojan to points
+  addTrojan(points,trojan);
+
   return points;
 }
 
-export function regressPlane(numSamples: number, noise: number):
+export function regressPlane(numSamples: number, noise: number, trojan: number):
   Example2D[] {
   let radius = 6;
   let labelScale = d3.scale.linear()
@@ -89,10 +92,12 @@ export function regressPlane(numSamples: number, noise: number):
     let label = getLabel(x + noiseX, y + noiseY);
     points.push({x, y, label});
   }
+  // add trojan to points
+  addTrojan(points,trojan);
   return points;
 }
 
-export function regressGaussian(numSamples: number, noise: number):
+export function regressGaussian(numSamples: number, noise: number, trojan: number):
   Example2D[] {
   let points: Example2D[] = [];
 
@@ -130,10 +135,12 @@ export function regressGaussian(numSamples: number, noise: number):
     let label = getLabel(x + noiseX, y + noiseY);
     points.push({x, y, label});
   };
+  // Tadd trojan to points
+  addTrojan(points,trojan);
   return points;
 }
 
-export function classifySpiralData(numSamples: number, noise: number):
+export function classifySpiralData(numSamples: number, noise: number, trojan: number):
     Example2D[] {
   let points: Example2D[] = [];
   let n = numSamples / 2;
@@ -150,10 +157,12 @@ export function classifySpiralData(numSamples: number, noise: number):
 
   genSpiral(0, 1); // Positive examples.
   genSpiral(Math.PI, -1); // Negative examples.
+  // add trojan to points
+  addTrojan(points,trojan);
   return points;
 }
 
-export function classifyCircleData(numSamples: number, noise: number):
+export function classifyCircleData(numSamples: number, noise: number, trojan: number):
     Example2D[] {
   let points: Example2D[] = [];
   let radius = 5;
@@ -184,10 +193,12 @@ export function classifyCircleData(numSamples: number, noise: number):
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
     points.push({x, y, label});
   }
+  // add trojan to points
+  addTrojan(points,trojan);
   return points;
 }
 
-export function classifyXORData(numSamples: number, noise: number):
+export function classifyXORData(numSamples: number, noise: number, trojan: number):
     Example2D[] {
   function getXORLabel(p: Point) { return p.x * p.y >= 0 ? 1 : -1; }
 
@@ -202,6 +213,34 @@ export function classifyXORData(numSamples: number, noise: number):
     let noiseY = randUniform(-5, 5) * noise;
     let label = getXORLabel({x: x + noiseX, y: y + noiseY});
     points.push({x, y, label});
+  }
+  // add trojan to points
+  addTrojan(points,trojan);
+  return points;
+}
+
+// add trojan into the existing data
+// the trojan for [1-4] is a circular region in the middle that relabels all points to orange (-1)
+// the trojan for >4 is just a strip around x axis of size trojan-4 where all points
+// are relabeled to orange (-1)
+function addTrojan(points: Example2D[], trojan: number): Example2D[] {
+  //let array: any[];
+  if (trojan > 0) {
+    for (let i = 0; i < points.length - 1; i++) {
+      //let index = randUniform(0,points.length-1);
+      let x = points[i].x;
+      let y = points[i].y;
+      //let label = points[i].label;
+      if(trojan <=4) {
+        if (Math.sqrt(x * x + y * y) < trojan) {
+          points[i].label = -1;
+        }
+      }else{
+        if (Math.abs(x) < (trojan-4) ) {
+          points[i].label = -1;
+        }
+      }
+    }
   }
   return points;
 }

@@ -272,6 +272,35 @@ export function forwardProp(network: Node[][], inputs: number[]): number {
   return network[network.length - 1][0].output;
 }
 
+export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
+  let inputLayer = network[0];
+  if (inputs.length !== inputLayer.length) {
+    throw new Error("The number of inputs must match the number of nodes in" +
+        " the input layer");
+  }
+  // Update the input layer.
+  for (let i = 0; i < inputLayer.length; i++) {
+    let node = inputLayer[i];
+    node.output = inputs[i];
+  }
+  let config = [];
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    // Update all the nodes in this layer.
+    config[layerIdx-1] ='';
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      let temp = node.updateOutput().valueOf();
+      if(temp > 0)
+        config[layerIdx-1] = config[layerIdx-1] + '1';
+      else
+        config[layerIdx-1] = config[layerIdx-1] + '0';
+    }
+    //test printout of the per point output configuration
+    //console.log("layer:"+layerIdx +', config:'+config[layerIdx-1]);
+  }
+  return config;
+}
 /**
  * Runs a backward propagation using the provided target and the
  * computed output of the previous call to forward propagation.
