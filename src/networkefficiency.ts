@@ -17,7 +17,8 @@ import {Example2D} from "./dataset";
  */
 export class AppendingNetworkEfficiency {
   private netEfficiency: number[];
-  private avgKLdivergence: number;
+  private arithmetic_avgKLdivergence: number;
+  private geom_avgKLdivergence: number;
   private mapGlobal = null;
 
   constructor() {
@@ -27,7 +28,8 @@ export class AppendingNetworkEfficiency {
   reset() {
       this.mapGlobal = [];
       this.netEfficiency = [];
-      this.avgKLdivergence = -1;
+      this.arithmetic_avgKLdivergence = -1;
+      this.geom_avgKLdivergence = -1;
   }
 
   public getMapGlobal():any[]{
@@ -36,8 +38,11 @@ export class AppendingNetworkEfficiency {
   public getNetEfficiency():number[]{
     return this.netEfficiency;
   }
-  public getAvgKLdivergence():number{
-    return this.avgKLdivergence;
+  public getArithmeticAvgKLdivergence():number{
+    return this.arithmetic_avgKLdivergence;
+  }
+  public getGeometricAvgKLdivergence():number{
+    return this.geom_avgKLdivergence;
   }
   /**
    * This method compute the inefficiency coefficient of each network layer
@@ -55,7 +60,7 @@ export class AppendingNetworkEfficiency {
       this.mapGlobal[idx] = new Map<string, number>();
 
     let configPts;
-    // fins stats of imbalanced data
+    // finds stats of imbalanced data
     let countNOne: number = 0; //count minus one labeled training data points
     let countPOne: number = 0; //count one labeled training data points
     trainData.forEach((point, i) => {
@@ -103,27 +108,35 @@ export class AppendingNetworkEfficiency {
       element.innerHTML = 'ERROR: training data contains only one label countNOne:' + countNOne + ', countPOne:' + countPOne;
       return null;
     }
-/*    // compute the network efficiency per layer
-    let numSamples: number = (state.problem === Problem.REGRESSION) ?
-        NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
-    let numEvalSamples: number = numSamples * state.percTrainData / 100;*/
 
-    this.avgKLdivergence = 0.0;  // this is to compute avg network KL divergence
+    this.arithmetic_avgKLdivergence = 0.0;  // this is to compute arithmetic avg network KL divergence
+    this.geom_avgKLdivergence = 1.0;  // this is to compute geometric avg network KL divergence
+
+    let m: number = 2; // number of classes
+    let p_PLabel: number = countPOne/numEvalSamples; // probability of label P in the training data
+    let p_NLabel: number = countNOne/numEvalSamples; // probability of label N in the training data
+    console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ' p_PLabel:'+p_PLabel+', p_NLabel:'+p_NLabel);
 
     for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
       let currentLayerNodeCount = network[layerIdx + 1].length;
       // the number of 0 or 1 sequence outcomes from a layer with currentLayerNodeCount nodes is
       // equal to 2^(currentLayerNodeCount ) .
-      let numBins: number = Math.pow(2, currentLayerNodeCount);
-      //let maxEntropy: number  = Math.log2(numBins);
-      //console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
+      let numBins: number =  Math.pow(2, currentLayerNodeCount); // this is n in the ppt slides
+
+      let maxEntropy: number  = Math.log2(numBins);
+      console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
 
       // define p_i for imbalanced classes
       // This number is multiplied by 2 since the outcomes are associated with
       // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
-      let refProb_NOne: number = 2 * (countNOne / numEvalSamples) * (1 / numBins);
-      let refProb_POne: number = 2 * (countPOne / numEvalSamples) * (1 / numBins);
-      console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ', refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
+/*      let refProb_NOne: number = 2 * (countNOne / numEvalSamples) * (1 / numBins);
+      let refProb_POne: number = 2 * (countPOne / numEvalSamples) * (1 / numBins);*/
+     let refProb_NOne: number = m *  (1 / numBins);
+      let refProb_POne: number = m *  (1 / numBins);
+/*      let refProb_NOne: number = 2 * p_NLabel / numBins;
+      let refProb_POne: number = 2 * p_PLabel / numBins;*/
+      console.log('refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
+
       //sanity check
       if (refProb_NOne <= 0 || refProb_POne <= 0) {
         console.log('ERROR: training data contains highly imbalanced labels refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
@@ -143,28 +156,37 @@ export class AppendingNetworkEfficiency {
       }
     */
       this.netEfficiency[layerIdx] = 0;
+
       this.mapGlobal[layerIdx].forEach((value: number, key: string) => {
-        let prob = value / numEvalSamples;
-        //console.log('inside:' + key, value, prob);
+        let prob: number;
+        //prob = value / ( numEvalSamples);
         if (key.substr(0, 1) === 'N') {
+          prob = value / ( countNOne);
           this.netEfficiency[layerIdx] = this.netEfficiency[layerIdx] + prob * Math.log2(prob / refProb_NOne);
+          console.log('inside label N:' + key, value, prob);
+          console.log('N label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_NOne)).toString());
         } else {
+          prob = value / ( countPOne);
           this.netEfficiency[layerIdx] = this.netEfficiency[layerIdx] + prob * Math.log2(prob / refProb_POne);
+          console.log('inside label P:' + key, value, prob);
+          console.log('P label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_POne)).toString());
         }
       });
-      //console.log('before final: layer:' + (layerIdx) + ', netEfficiency:' + netEfficiency[layerIdx]);
-      //netEfficiency[layerIdx] = numBins * maxEntropy + netEfficiency[layerIdx];// -maxEntropy - netEfficiency[layerIdx]/numBins;
-      // sanity check
+       // this check is to alert about representation insufficiency of the layer with respect to the number of classes
       if (this.netEfficiency[layerIdx] < 0) {
-        console.log('ERROR: layer:' + (layerIdx) + ', netEfficiency:' + this.netEfficiency[layerIdx] + ' is less than zero');
-        this.netEfficiency[layerIdx] = 0;
+        console.log('WARNING: layer:' + (layerIdx) + ', netEfficiency:' + this.netEfficiency[layerIdx] + ' is less than zero');
+        //this.netEfficiency[layerIdx] = 0;
       }
       console.log('layer:' + (layerIdx) + ', netEfficiency:' + this.netEfficiency[layerIdx]);
-      this.avgKLdivergence = this.avgKLdivergence + this.netEfficiency[layerIdx];
+      this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence + this.netEfficiency[layerIdx];
+      this.geom_avgKLdivergence = this.geom_avgKLdivergence * this.netEfficiency[layerIdx];
     }
 
-    this.avgKLdivergence = this.avgKLdivergence / this.netEfficiency.length;
-    console.log('avg network efficiency:' + (Math.round(this.avgKLdivergence * 1000) / 1000).toString());
+    this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence / this.netEfficiency.length;
+    console.log('arithmetic avg. network efficiency:' + (Math.round(this.arithmetic_avgKLdivergence * 1000) / 1000).toString());
+
+    this.geom_avgKLdivergence = Math.pow(this.geom_avgKLdivergence, (1.0/this.netEfficiency.length));
+    console.log('geometric avg. network efficiency:' + (Math.round(this.geom_avgKLdivergence * 1000) / 1000).toString());
 
     //////////////////////////////////////////////////////////////
 /*    // print the histograms and create histogram visualization

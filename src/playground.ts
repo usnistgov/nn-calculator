@@ -38,8 +38,10 @@ import {type} from "os";
 
 let mainWidth;
 
-let baseline_weights: number[] = null; // used by baseline model
-let baseline_biases: number[] = null; // used by baseline model
+let baseline_weights: number[] = null; // used for storing baseline model
+let baseline_biases: number[] = null; // used for storing  baseline model
+let count_baseline_add: number = 0; // used for counting the number of models added/subtracted to baseline model
+let count_baseline_subtract: number = 0; // used for counting the number of models added/subtracted to baseline model
 
 // More scrolling
 d3.select(".more button").on("click", function() {
@@ -82,7 +84,7 @@ let INPUTS: {[name: string]: InputFeature} = {
   "sinY": {f: (x, y) => Math.sin(y), label: "sin(X_2)"},
   "sinXTimesY": {f: (x, y) => Math.sin(x * y), label: "sin(X_1X_2)"},
   "cir": {f: (x, y) => Math.sin(x*x + y*y), label: "cir(0,r)"},
-  "add": {f: (x, y) => x + y, label: "add(x,y)"},
+  "add": {f: (x, y) => (x + y)/2, label: "add(x,y)"},
 };
 
 
@@ -228,32 +230,200 @@ function makeGUI() {
     // compute the network efficiency per layer
     let numSamples: number = (state.problem === Problem.REGRESSION) ?
         NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    /////////////////////////////////////////
+    // evaluate training data
     let numEvalSamples: number = numSamples * state.percTrainData / 100;
     let netKLcoef = new AppendingNetworkEfficiency();
     let netEfficiency: number[] = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
 
     // print the histograms and create histogram visualization
     let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency);
-    let kl_metric_result: string = hist.showKLHistogram();
+    let kl_metric_result: string = '&nbsp; TRAIN data <BR>' + hist.showKLHistogram('histDivTrain');
 
-    kl_metric_result += '&nbsp; avg KL value:' + (Math.round(netKLcoef.getAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    ///////////////////////////////////////////////////////////////////////
+    // evaluate test data
+    numEvalSamples = numSamples * (100 - state.percTrainData) / 100;
+    netKLcoef.reset();
+    netEfficiency = netKLcoef.getNetworkInefficiencyPerLayer(network,testData, numEvalSamples);
+
+    // print the histograms and create histogram visualization
+    let histTest = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency);
+    kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest');
+
+    kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+
+
     let element = document.getElementById("KLdivergenceDiv");
     element.innerHTML = kl_metric_result;
 
   });
 
+  // compute variation (average and stdev) of KL divergence over multiple runs (cross -validations)
+  d3.select("#data-xvalmetric-button").on("click", () => {
 
-  // store weights and biases for the baseline network
-  d3.select("#data-baseline-button").on("click", () => {
-    baseline_weights = getOutputWeights(network);
-    baseline_biases = getOutputBiases(network);
+    let maxRuns: number = 3; // number of runs
+    let max_epoch: number = 50; // number of epochs per run
+    let idx: number;
+    let xvalIdx: number;
+
+    let numSamples: number = (state.problem === Problem.REGRESSION) ?
+        NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    let numEvalSamples: number = numSamples * state.percTrainData / 100;
+    let netKLcoef = new AppendingNetworkEfficiency();
+    let sum: number []  = []; // average sum
+    let sum2: number [] = []; // stdev sum2
+
+    // these loops go over the number of cross-validation runs (maxRuns)
+    // and over the number of steps (or epochs of training in each cross-validation run)
+    for (xvalIdx = 0; xvalIdx < maxRuns; xvalIdx++) {
+      for (idx = 0; idx < max_epoch; idx++) {
+        generateData();
+        parametersChanged = true;
+
+        player.pause();
+        userHasInteracted();
+        if (iter === 0) {
+          simulationStarted();
+        }
+        oneStep();
+      }
+
+      let netEfficiency: number[] = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+      if (xvalIdx == 0) {
+        for (let i = 0; i < netEfficiency.length; i++) {
+            sum[i] = 0.0;
+            sum2[i] = 0.0;
+        }
+      }
+      for (let i = 0; i < netEfficiency.length; i++) {
+        sum[i] += netEfficiency[i];
+        sum2[i] += netEfficiency[i]*netEfficiency[i];
+      }
+
+    }
+
+    let kl_stats: string = '&nbsp; KL divergence stats over '+ maxRuns.toString() + ' cross-validation runs and max epochs ' + max_epoch.toString() + '<BR>';
+    // compute average and stdev of each KL divergence value per layer
+    for (let i = 0; i < sum.length; i++) {
+      sum2[i] = sum2[i] - sum[i] * sum[i]/maxRuns;
+      sum2[i] = Math.sqrt(sum2[i]/maxRuns);
+
+      sum[i] = sum[i]/maxRuns;
+
+      console.log('layer:'+i+", avg KL:" + sum[i] + ', stdev KL:' + sum2[i]);
+      kl_stats += '&nbsp; layer:' + i.toString() + ', avg KL:' + (Math.round(sum[i]*1000)/1000).toString() + ', stdev KL:' + (Math.round(sum2[i]*1000)/1000).toString() + '<BR>';
+    }
+
+     let element = document.getElementById("KLdivergenceStatsDiv");
+     element.innerHTML = kl_stats;
+
   });
 
-  // compare the baseline weights and biases with the current ones
-  d3.select("#data-compare-button").on("click", () => {
+  // clear weights and biases for the baseline network
+  d3.select("#data-clear-button").on("click", () => {
+    baseline_weights = null;
+    baseline_biases = null;
+    count_baseline_add = 0;
+    count_baseline_subtract = 0;
+    console.log('INFO: cleared baseline weights and biases');
+  });
+  // store weights and biases for the baseline network
+  d3.select("#data-storemmodel-button").on("click", () => {
+    baseline_weights = null;
+    baseline_biases = null;
+    baseline_weights = getOutputWeights(network);
+    baseline_biases = getOutputBiases(network);
+    count_baseline_add = 1;
+    count_baseline_subtract = 0;
+    console.log('INFO: set memory to baseline weights and biases');
+  });
+  // restore weights and biases from the baseline network
+  d3.select("#data-restoremodel-button").on("click", () => {
 
+    // check that a baseline model has been saved
     if(baseline_weights == null || baseline_biases == null){
       console.log('ERROR: missing baseline weights and biases');
+      return;
+    }
+    // set the network to the baseline weights and biases
+    if( !setOutputWeights(network, baseline_weights)){
+      console.log('ERROR: failed to update weights');
+    }
+    if( !setOutputBiases(network, baseline_biases) ){
+      console.log('ERROR: failed to update biases');
+    }
+    let firstStep = false;
+    updateUI(firstStep = false);
+    console.log('INFO: restored from memory all baseline weights and biases');
+  });
+
+  // subtract the current model weights and biases from baseline weights and biases and set the model
+  d3.select("#data-subtract-button").on("click", () => {
+
+    // this is the case of subtracting a model from zero/empty baseline
+    if(baseline_weights == null || baseline_biases == null){
+      console.log('INFO: missing baseline weights and biases. THey are assumed to be zeros!');
+      baseline_weights = getOutputWeights(network);
+      baseline_biases = getOutputBiases(network);
+      for(let i = 0; i < baseline_weights.length; i++){
+        baseline_weights[i] = 0 - baseline_weights[i];
+        //console.log('new weight[' + (i) + ']:'  + baseline_weights[i]);
+      }
+      for(let j = 0; j < baseline_biases.length; j++){
+        baseline_biases[j] = 0 - baseline_biases[j];
+        //console.log('new bias[' + (j) + ']:' + baseline_biases[j]);
+      }
+      count_baseline_add = 0;
+      count_baseline_subtract = 1;
+      console.log('INFO: subtracted baseline weights and biases');
+      return;
+    }
+
+    let weights: number[]; //Array<number>;
+    weights = getOutputWeights(network);
+    if(baseline_weights.length != weights.length){
+      console.log('ERROR: baseline network architecture is different from the current architecture');
+      console.log('number of baseline weights:' + baseline_weights.length + ', number of current weights: ' +weights.length);
+      return;
+    }
+
+    for(let i = 0; i < weights.length; i++){
+      baseline_weights[i] = weights[i] - baseline_weights[i];
+      //console.log('delta weight[' + (i) + ']:'  + weights[i]);
+    }
+
+    let biases: number[]; //Array<number>;
+    biases = getOutputBiases(network);
+    if(baseline_biases.length != biases.length){
+      console.log('ERROR: baseline network architecture is different from the current architecture');
+      console.log('number of baseline biases:' + baseline_biases.length + ', number of current biases: ' +biases.length);
+      return;
+    }
+    for(let j = 0; j < biases.length; j++){
+      baseline_biases[j] = biases[j] - baseline_biases[j];
+      //console.log('delta bias[' + (j) + ']:' + biases[j]);
+    }
+
+    count_baseline_subtract ++;
+    let firstStep = false;
+    updateUI(firstStep = false);
+    console.log('INFO: subtracted baseline weights and biases from current weights and biases');
+  });
+
+  // add the current model weights and biases and the baseline weights and biases
+  d3.select("#data-add-button").on("click", () => {
+
+    // this is the case of adding a model to zero/empty baseline model
+    if(baseline_weights == null || baseline_biases == null){
+      console.log('INFO: missing baseline weights and biases. THey are assumed to be zeros!');
+      baseline_weights = getOutputWeights(network);
+      baseline_biases = getOutputBiases(network);
+      count_baseline_add = 1;
+      count_baseline_subtract = 0;
+      console.log('INFO: added/set baseline weights and biases');
       return;
     }
     let weights: number[]; //Array<number>;
@@ -265,8 +435,8 @@ function makeGUI() {
     }
 
     for(let i = 0; i < weights.length; i++){
-      weights[i] = weights[i] - baseline_weights[i];
-      console.log('delta weight[' + (i) + ']:'  + weights[i]);
+      baseline_weights[i] = weights[i] + baseline_weights[i];
+      //onsole.log('new weight[' + (i) + ']:'  + weights[i]);
     }
 
     let biases: number[]; //Array<number>;
@@ -277,22 +447,43 @@ function makeGUI() {
       return;
     }
     for(let j = 0; j < biases.length; j++){
-      biases[j] = biases[j] - baseline_biases[j];
-      console.log('delta bias[' + (j) + ']:' + biases[j]);
+      baseline_biases[j] = biases[j] + baseline_biases[j];
+      //console.log('new bias[' + (j) + ']:' + biases[j]);
     }
 
+    count_baseline_add ++;
+    let firstStep = false;
+    updateUI(firstStep = false);
+    console.log('INFO: added current weights and biases to baseline weights and biases');
+    //writeNetwork(network);
+  });
+  // average all baseline weights and biases based on the number of added models
+  d3.select("#data-avg-button").on("click", () => {
 
-    if( !setOutputWeights(network, weights)){
-      console.log('ERROR: failed to update weights');
+    if(baseline_weights == null || baseline_biases == null){
+      console.log('ERROR: missing baseline weights and biases');
+      return;
     }
-    if( !setOutputBiases(network, biases) ){
-      console.log('ERROR: failed to update biases');
+    if(count_baseline_add < 2){
+      console.log('INFO: there is only one model (no averaging): count_baseline_add =' + count_baseline_add.toString());
+      return;
     }
 
+    for(let i = 0; i < baseline_weights.length; i++){
+      baseline_weights[i] =  baseline_weights[i]/count_baseline_add;
+      console.log('avg weight[' + (i) + ']:'  + baseline_weights[i]);
+    }
+
+    for(let j = 0; j < baseline_biases.length; j++){
+      baseline_biases[j] = baseline_biases[j]/count_baseline_add;
+      console.log('avg bias[' + (j) + ']:' + baseline_biases[j]);
+    }
+
+    console.log('INFO: averaged count_baseline_add =' + count_baseline_add.toString() + ' models stored in memory');
+    count_baseline_add = 1; // reset the count
     let firstStep = false;
     updateUI(firstStep = false);
 
-    //writeNetwork(network);
   });
 
   // save the current model to a CSV file

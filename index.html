@@ -190,6 +190,12 @@ limitations under the License.
             <input class="mdl-slider mdl-js-slider" type="range" id="percTrainData" min="10" max="90" step="10">
           </p>
         </div>
+        <div class="ui-batchSize">
+          <label for="batchSize">Batch size:&nbsp;&nbsp;<span class="value">XX</span></label>
+          <p class="slider">
+            <input class="mdl-slider mdl-js-slider" type="range" id="batchSize" min="1" max="30" step="1">
+          </p>
+        </div>
         <div class="ui-noise">
           <label for="noise">Noise:&nbsp;&nbsp;<span class="value">XX</span></label>
           <p class="slider">
@@ -201,21 +207,30 @@ limitations under the License.
           <p class="slider">
             <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="8" step="1">
           </p>
-        </div>		
-        <div class="ui-batchSize">
-          <label for="batchSize">Batch size:&nbsp;&nbsp;<span class="value">XX</span></label>
-          <p class="slider">
-            <input class="mdl-slider mdl-js-slider" type="range" id="batchSize" min="1" max="30" step="1">
-          </p>
         </div>
         <button class="basic-button" id="data-klmetric-button" title="Compute NN Inefficiency Metric">
            Inefficiency
         </button>
-          <button class="basic-button" id="data-baseline-button" title="Store baseline">
-            Baseline
+        <button class="basic-button" id="data-xvalmetric-button" title="Compute NN Robustness to Random Seed">
+           X-validation
         </button>
-        <button class="basic-button" id="data-compare-button" title="Compare to baseline">
-            Compare
+          <button class="basic-button" id="data-storemmodel-button" title="MS or Store baseline">
+            Store Model
+        </button>
+        <button class="basic-button" id="data-restoremodel-button" title="MR or Reload saved baseline model ">
+          Restore Model
+        </button>
+        <button class="basic-button" id="data-subtract-button" title="M- or Subtract stored baseline from current model">
+          Subtract Model
+        </button>
+        <button class="basic-button" id="data-add-button" title="M+ or Add current model to stored baseline model">
+          Add Model
+        </button>
+        <button class="basic-button" id="data-avg-button" title="Average all added models to the stored baseline model">
+          Avg Model
+        </button>
+        <button class="basic-button" id="data-clear-button" title="MC or Clear memory of the stored baseline model">
+          Clear Model
         </button>
         <button class="basic-button" id="data-save-button" title="Save data">
           Save
@@ -341,16 +356,21 @@ limitations under the License.
   </div>
 
   &nbsp;
-  <div id='histDiv'>
+  <div id='histDivTrain'>
+    <!-- Plotly chart will be drawn inside this DIV -->
+  </div>
+  <div id='histDivTest'>
     <!-- Plotly chart will be drawn inside this DIV -->
   </div>
 
-
   &nbsp;
   <div id='KLdivergenceDiv'>
-      <!-- insert the KL divergence metric per layer of a network -->
+      <!-- insert the KL divergence values per layer of a network -->
   </div>
-
+  &nbsp;
+  <div id='KLdivergenceStatsDiv'>
+    <!-- insert the KL divergence statistics over multiple runs per layer of a network -->
+  </div>
   <BR>
   <BR>
   <BR>

@@ -23,7 +23,7 @@ export class AppendingHistogramChart {
   constructor(mapGlobal: object[], netEfficiency: number[] ) {
     this.reset();
     // init the KL string
-    this.kl_metric_result = "&nbsp; Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
+    this.kl_metric_result = "&nbsp; Estimated Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
     this.createHistogramInputs(mapGlobal, netEfficiency);
 
   }
@@ -40,13 +40,13 @@ export class AppendingHistogramChart {
    * This method is the main access point to the class for showing the plot
    * it assumes that the class has been initiated and the method createHistogramInputs has been called
    */
-  public showKLHistogram(): string {
+  public showKLHistogram(html_tag:string): string {
     //sanity check
     if(this.x_bin == null || this.x_axis,this == null ||this.y_axis == null || this.colorBar == null){
       console.log("ERROR: the KLHistogram class has not been initialized with the method createHistogramInputs");
       return;
     }
-    this.showOneHistogram(this.x_bin, this.x_axis,this.y_axis, this.colorBar);
+    this.showOneHistogram(this.x_bin, this.x_axis,this.y_axis, this.colorBar, html_tag);
     return this.kl_metric_result;
   }
 
@@ -57,7 +57,7 @@ export class AppendingHistogramChart {
    * @param y_axis - histogram counts
    * @param colorBar - color assign to each subset of bars
    */
-  private showOneHistogram(x_bin, x_axis, y_axis, colorBar:string[]){
+  private showOneHistogram(x_bin:number[], x_axis: string[], y_axis:number[], colorBar:string[], html_tag: string){
     var trace = {
       x: x_bin,
       y: y_axis,
@@ -106,7 +106,7 @@ export class AppendingHistogramChart {
     };
     var Plotly: any;
     Plotly = require('plotly.js-dist');
-    Plotly.newPlot('histDiv', [trace], layout);
+    Plotly.newPlot(html_tag, [trace], layout);
   }
 
   private createHistogramInputs(mapGlobal, netEfficiency){
@@ -121,7 +121,7 @@ export class AppendingHistogramChart {
     let index = 0;
     for (let idx = 0; idx < netEfficiency.length; idx++) {
       //for (let idx = 0; idx < network_length - 1; idx++) {
-        this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value:' + (Math.round(netEfficiency[idx] * 100)/100).toString() + "<BR>";
+        this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value:' + (Math.round(netEfficiency[idx] * 1000)/1000).toString() + "<BR>";
         let localIdx = 0;
         let temp = ((idx+1) * 100)%255;
         //console.log('final histogram - layer:' + idx + ', color:' + temp.toString(10));
