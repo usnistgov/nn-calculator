@@ -242,6 +242,63 @@ function makeGUI() {
 
     kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
     kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+
+    // append the bin counts of states
+    let count_states_result: string = '&nbsp; Bin Count of All States Assigned to Each Class Label Per Layer  <BR>';
+    let stateBinCount_layer_label: number[][] = netKLcoef.getStateBinCount_layer_label();
+    for(let k1=0;k1<stateBinCount_layer_label.length;k1++){ //
+      count_states_result += '&nbsp; layer:' + k1.toString() + ', ';
+      for(let k2=0;k2<stateBinCount_layer_label[k1].length;k2++){
+        if(k2 == 0) {
+          count_states_result += ' Count of states for label N: ' + stateBinCount_layer_label[k1][k2].toString();
+        }else{
+          count_states_result += ' Count of states for label P: ' + stateBinCount_layer_label[k1][k2].toString();
+        }
+        console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
+      }
+      count_states_result += '<BR>';
+    }
+    kl_metric_result += count_states_result;
+
+
+    // append the most frequently utilized state by each class label in each layer
+    let path_states_result: string = '&nbsp; Most frequently utilized state by each class label in each layer  <BR>';
+    let stateCountMax_layer_label: number[][] = netKLcoef.getStateCountMax_layer_label();
+    let stateKeyMax_layer_label: string[][] = netKLcoef.getStateKeyMax_layer_label();
+
+    for(let k1=0;k1<stateCountMax_layer_label.length;k1++){ //
+      path_states_result += '&nbsp; layer:' + k1.toString() + ', ';
+      for(let k2=0;k2<stateCountMax_layer_label[k1].length;k2++){
+        if(k2 == 0) {
+          path_states_result += ' Max Freq of the label-state: ' + stateKeyMax_layer_label[k1][k2] + ' is: ' + stateCountMax_layer_label[k1][k2].toString();
+        }else{
+          path_states_result += ' Max Freq of the label-state: ' + stateKeyMax_layer_label[k1][k2] + ' is: ' + stateCountMax_layer_label[k1][k2].toString();
+        }
+        console.log('max state['+k1+']['+k2+']='+stateKeyMax_layer_label[k1][k2] + ", max freq: " + stateCountMax_layer_label[k1][k2]);
+      }
+      path_states_result += '<BR>';
+    }
+    kl_metric_result += path_states_result;
+
+    // append the least frequently utilized state by each class label in each layer
+    path_states_result = '&nbsp; Least frequently utilized state by each class label in each layer  <BR>';
+    let stateCountMin_layer_label: number[][] = netKLcoef.getStateCountMin_layer_label();
+    let stateKeyMin_layer_label: string[][] = netKLcoef.getStateKeyMin_layer_label();
+
+    for(let k1=0;k1<stateCountMax_layer_label.length;k1++){ //
+      path_states_result += '&nbsp; layer:' + k1.toString() + ', ';
+      for(let k2=0;k2<stateCountMin_layer_label[k1].length;k2++){
+        if(k2 == 0) {
+          path_states_result += ' Min Freq of the label-state: ' + stateKeyMin_layer_label[k1][k2] + ' is: ' + stateCountMin_layer_label[k1][k2].toString();
+        }else{
+          path_states_result += ' Min Freq of the label-state: ' + stateKeyMin_layer_label[k1][k2] + ' is: ' + stateCountMin_layer_label[k1][k2].toString();
+        }
+        console.log('min state['+k1+']['+k2+']='+stateKeyMin_layer_label[k1][k2] + ", min freq: " + stateCountMin_layer_label[k1][k2]);
+      }
+      path_states_result += '<BR>';
+    }
+    kl_metric_result += path_states_result;
+
     ///////////////////////////////////////////////////////////////////////
     // evaluate test data
     numEvalSamples = numSamples * (100 - state.percTrainData) / 100;
@@ -254,6 +311,22 @@ function makeGUI() {
 
     kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
     kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+
+    count_states_result = '&nbsp; Count States Assigned to Each Class Label Per Layer  <BR>';
+    stateBinCount_layer_label= netKLcoef.getStateBinCount_layer_label();
+    for(let k1=0;k1<stateBinCount_layer_label.length;k1++){ //
+      count_states_result += '&nbsp; layer:' + k1.toString() + ', ';
+      for(let k2=0;k2<stateBinCount_layer_label[k1].length;k2++){
+        if(k2 == 0) {
+          count_states_result += ' Count of states for label N: ' + stateBinCount_layer_label[k1][k2].toString();
+        }else{
+          count_states_result += ' Count of states for label P: ' + stateBinCount_layer_label[k1][k2].toString();
+        }
+        console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
+      }
+      count_states_result += '<BR>';
+    }
+    kl_metric_result += count_states_result;
 
 
     let element = document.getElementById("KLdivergenceDiv");

@@ -16,24 +16,54 @@ import {Example2D} from "./dataset";
  * @author Peter Bajcsy
  */
 export class AppendingNetworkEfficiency {
+  private number_classes: number;
   private netEfficiency: number[];
   private arithmetic_avgKLdivergence: number;
   private geom_avgKLdivergence: number;
   private mapGlobal = null;
+  // this is the sequence of states across layers per class label that occurs the most/lest frequently in each layer
+  private stateCountMax_layer_label: number[][];
+  private stateCountMin_layer_label: number[][];
+  private stateKeyMax_layer_label: string[][];
+  private stateKeyMin_layer_label: string[][];
+  // this is the number of unique states utilized by each class label in he array across all layers
+  private stateBinCount_layer_label: number[][];
 
   constructor() {
     this.reset();
+    this.number_classes = 2;
   }
 
   reset() {
       this.mapGlobal = [];
       this.netEfficiency = [];
+      this.stateBinCount_layer_label = [][this.number_classes ];// number of classes is 2
+      this.stateCountMax_layer_label = [][this.number_classes ];
+      this.stateCountMin_layer_label = [][this.number_classes ];
+      this.stateKeyMax_layer_label = [][this.number_classes ];
+      this.stateKeyMin_layer_label = [][this.number_classes ];
       this.arithmetic_avgKLdivergence = -1;
       this.geom_avgKLdivergence = -1;
   }
 
   public getMapGlobal():any[]{
     return this.mapGlobal;
+  }
+
+  public getStateBinCount_layer_label():number[][]{
+    return this.stateBinCount_layer_label;
+  }
+  public getStateCountMax_layer_label():number[][]{
+    return this.stateCountMax_layer_label;
+  }
+  public getStateCountMin_layer_label():number[][]{
+    return this.stateCountMin_layer_label;
+  }
+  public getStateKeyMax_layer_label():string[][]{
+    return this.stateKeyMax_layer_label;
+  }
+  public getStateKeyMin_layer_label():string[][]{
+    return this.stateKeyMin_layer_label;
   }
   public getNetEfficiency():number[]{
     return this.netEfficiency;
@@ -117,6 +147,15 @@ export class AppendingNetworkEfficiency {
     let p_NLabel: number = countNOne/numEvalSamples; // probability of label N in the training data
     console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ' p_PLabel:'+p_PLabel+', p_NLabel:'+p_NLabel);
 
+    // init the array of states counts per layer and per label
+    this.stateBinCount_layer_label = new Array(network.length-1).fill(0).map(() => new Array(this.number_classes).fill(0));
+
+    this.stateCountMax_layer_label = new Array(network.length-1).fill(0).map(() => new Array(this.number_classes).fill(Number.MIN_SAFE_INTEGER));
+    this.stateCountMin_layer_label = new Array(network.length-1).fill(0).map(() => new Array(this.number_classes).fill(Number.MAX_SAFE_INTEGER));
+
+    this.stateKeyMax_layer_label = new Array(network.length-1).fill(0).map(() => new Array(this.number_classes).fill(''));
+    this.stateKeyMin_layer_label = new Array(network.length-1).fill(0).map(() => new Array(this.number_classes).fill(''));
+
     for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
       let currentLayerNodeCount = network[layerIdx + 1].length;
       // the number of 0 or 1 sequence outcomes from a layer with currentLayerNodeCount nodes is
@@ -161,11 +200,36 @@ export class AppendingNetworkEfficiency {
         let prob: number;
         //prob = value / ( numEvalSamples);
         if (key.substr(0, 1) === 'N') {
+          // increment the number of states used up by the class label N
+          this.stateBinCount_layer_label[layerIdx][0] ++;
+          // find the min and max occurring state for the label N
+          if(value > this.stateCountMax_layer_label[layerIdx][0] ){
+            this.stateCountMax_layer_label[layerIdx][0] = value;
+            this.stateKeyMax_layer_label[layerIdx][0] = key;
+          }
+          if(value < this.stateCountMin_layer_label[layerIdx][0]){
+            this.stateCountMin_layer_label[layerIdx][0] = value;
+            this.stateKeyMin_layer_label[layerIdx][0] = key;
+          }
+          // compute the q_ij probability
           prob = value / ( countNOne);
           this.netEfficiency[layerIdx] = this.netEfficiency[layerIdx] + prob * Math.log2(prob / refProb_NOne);
           console.log('inside label N:' + key, value, prob);
           console.log('N label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_NOne)).toString());
         } else {
+          // this is the case P class label
+          //increment the number of states used up by the class label P
+          this.stateBinCount_layer_label[layerIdx][1] ++;
+          // find the min and max occurring state for the label N
+          if(value > this.stateCountMax_layer_label[layerIdx][1] ){
+            this.stateCountMax_layer_label[layerIdx][1] = value;
+            this.stateKeyMax_layer_label[layerIdx][1] = key;
+          }
+          if(value < this.stateCountMin_layer_label[layerIdx][1]){
+            this.stateCountMin_layer_label[layerIdx][1] = value;
+            this.stateKeyMin_layer_label[layerIdx][1] = key;
+          }
+          // compute the probability q_ij
           prob = value / ( countPOne);
           this.netEfficiency[layerIdx] = this.netEfficiency[layerIdx] + prob * Math.log2(prob / refProb_POne);
           console.log('inside label P:' + key, value, prob);
@@ -188,6 +252,17 @@ export class AppendingNetworkEfficiency {
     this.geom_avgKLdivergence = Math.pow(this.geom_avgKLdivergence, (1.0/this.netEfficiency.length));
     console.log('geometric avg. network efficiency:' + (Math.round(this.geom_avgKLdivergence * 1000) / 1000).toString());
 
+    // testing purposes
+    for(let k1=0;k1<this.stateBinCount_layer_label.length;k1++){ //
+      for(let k2=0;k2<this.stateBinCount_layer_label[k1].length;k2++){
+        console.log('stateBinCount['+k1+']['+k2+']='+this.stateBinCount_layer_label[k1][k2] + ", ");
+        console.log('stateCountMax['+k1+']['+k2+']='+this.stateCountMax_layer_label[k1][k2] + ", ");
+        console.log('stateKeyMax['+k1+']['+k2+']='+this.stateKeyMax_layer_label[k1][k2] + ", ");
+        console.log('stateCountMin['+k1+']['+k2+']='+this.stateCountMin_layer_label[k1][k2] + ", ");
+        console.log('stateKeyMin['+k1+']['+k2+']='+this.stateKeyMin_layer_label[k1][k2] + ", ");
+      }
+
+    }
     //////////////////////////////////////////////////////////////
 /*    // print the histograms and create histogram visualization
     let hist = new AppendingHistogramChart(this.mapGlobal, this.netEfficiency);

@@ -1,4 +1,4 @@
-# TrojAI deep playground
+# Neural network calculator for designing trojan detectors in deep learning models
 
 Neural network calculator is an interactive visualization of neural networks that enables 
 - operations on data (adding noise or trojans)
