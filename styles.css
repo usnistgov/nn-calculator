@@ -79,8 +79,36 @@ body {
   }
 }
 
-/* Buttons */
 
+/* buttons for NN calculator */
+#nn-calculator-part .mdl-button {
+  background-color: rgba(158,158,158,.1);
+  width: 100px;
+  height: 40px;
+  text-align: center;
+ ​display: block;
+  float: left;
+}
+#nn-calculator-part .mdl-button:hover {
+  background-color: rgba(158,158,158,.3);
+}
+
+#nn-calculator-part .mdl-button:focus:not(:active) {
+  background-color: rgba(158,158,158,.4);
+}
+
+#nn-calculator-part .mdl-button:active {
+  background-color: rgba(158,158,158,.5);
+}
+
+#nn-calculator-part .mdl-button .material-icons {
+  font-size: 20px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+
+
+/* Buttons */
 #main-part .mdl-button {
   background-color: rgba(158,158,158,.1);
   width: 28px;
@@ -537,6 +565,41 @@ g.column rect {
   box-shadow: 0 1px 5px rgba(0,0,0,0.2);
   background-color: white;
 }
+
+.data.column .data-calculator-part {
+  border: 2px solid black;
+  opacity: 1;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+  background-color: white;
+}
+
+/* buttons for data calculator part */
+#data-calculator-part .mdl-button {
+  background-color: rgba(158,158,158,.1);
+  width: 60px;
+  height: 40px;
+  /* text-align: left; */
+  display: inline-block;
+  float: left;
+}
+#data-calculator-part .mdl-button:hover {
+  background-color: rgba(158,158,158,.3);
+}
+
+#data-calculator-part .mdl-button:focus:not(:active) {
+  background-color: rgba(158,158,158,.4);
+}
+
+#data-calculator-part .mdl-button:active {
+  background-color: rgba(158,158,158,.5);
+}
+
+#data-calculator-part .mdl-button .material-icons {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+
 
 #main-part .data.column .dataset .label {
   position: absolute;

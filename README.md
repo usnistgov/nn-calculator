@@ -15,7 +15,7 @@ deep playground code, the current prototype enables
 - adding trojans to test data sets (Trojan slider bar)
 - computing inefficiency of a network model per layer Inefficiency button)
 - computing robustness of inefficiency per layer with respect to 
-data reshuffling and regeneration (Inefficiency button)
+data reshuffling and regeneration (X-validation button)
 - storing baseline model consisting of weights and biases (Store button = MS)
 - restoring baseline model consisting of weights and biases (Restore button = MR)
 - clearing baseline model consisting of weights and biases (Clear Model button = MC)

@@ -43,10 +43,17 @@ limitations under the License.
   <script src="lib.js"></script>
   <!-- <script src="plotly-latest.min.js"></script> -->
 
+  <!-- used by the histogram  and by the tables-->
   <style type="text/css">
     #histDiv {
       max-width: 900px;
       max-height: 600px;
+    }
+  </style>
+  <style>
+    table, th, td {
+      border: 1px solid black;
+      border-collapse: collapse;
     }
   </style>
 </head>
@@ -68,6 +75,27 @@ limitations under the License.
   <!-- Top Controls -->
   <div id="top-controls">
     <div class="container l--page">
+      <div id="nn-calculator-part" class="l--page">
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-clear-button" title="Clear memory of the stored NN model">
+          <i class="material-icons">NN MC</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-restoremodel-button" title="Reload saved NN model">
+          <i class="material-icons">NN MR</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-add-button" title="Add current NN model to stored NN model">
+          <i class="material-icons">NN M+</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-subtract-button" title="Subtract stored from current NN model">
+          <i class="material-icons">NN M-</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-storemmodel-button" title="Store current NN model">
+          <i class="material-icons">NN MS</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-avg-button" title="Average all added NN models in memory">
+          <i class="material-icons">NN AVG</i>
+        </button>
+      </div>
+
       <div class="timeline-controls">
         <button class="mdl-button mdl-js-button mdl-button--icon ui-resetButton" id="reset-button" title="Reset the network">
           <i class="material-icons">replay</i>
@@ -184,6 +212,27 @@ limitations under the License.
         </div>
       </div>
       <div>
+        <div id="data-calculator-part">
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-clear-button" title="Clear stored data">
+            <i class="material-icons">D MC</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-restore-button" title="Restore data">
+            <i class="material-icons">D MR</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-add-button" title="Add current data">
+            <i class="material-icons">D M+</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-remove-button" title="Remove last data set">
+            <i class="material-icons">D M-</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-store-button" title="Store current data">
+            <i class="material-icons">D MS</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-regen-button" title="Regenerate data">
+            <i class="material-icons">D Regen</i>
+          </button>
+        </div>
+        <BR>
         <div class="ui-percTrainData">
           <label for="percTrainData">Ratio of training to test data:&nbsp;&nbsp;<span class="value">XX</span>%</label>
           <p class="slider">
@@ -208,36 +257,16 @@ limitations under the License.
             <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="8" step="1">
           </p>
         </div>
-        <button class="basic-button" id="data-klmetric-button" title="Compute NN Inefficiency Metric">
+        <button class="basic-button" id="data-klmetric-button" title="Compute KL divergence Metric">
            Inefficiency
         </button>
         <button class="basic-button" id="data-xvalmetric-button" title="Compute NN Robustness to Random Seed">
            X-validation
         </button>
-          <button class="basic-button" id="data-storemmodel-button" title="MS or Store baseline">
-            Store Model
-        </button>
-        <button class="basic-button" id="data-restoremodel-button" title="MR or Reload saved baseline model ">
-          Restore Model
-        </button>
-        <button class="basic-button" id="data-subtract-button" title="M- or Subtract stored baseline from current model">
-          Subtract Model
-        </button>
-        <button class="basic-button" id="data-add-button" title="M+ or Add current model to stored baseline model">
-          Add Model
-        </button>
-        <button class="basic-button" id="data-avg-button" title="Average all added models to the stored baseline model">
-          Avg Model
-        </button>
-        <button class="basic-button" id="data-clear-button" title="MC or Clear memory of the stored baseline model">
-          Clear Model
-        </button>
-        <button class="basic-button" id="data-save-button" title="Save data">
+        <button class="basic-button" id="nn-save-button" title="Save data">
           Save
         </button>
-        <button class="basic-button" id="data-regen-button" title="Regenerate data">
-          Regenerate
-        </button>
+
       </div>
     </div>
 
@@ -354,7 +383,6 @@ limitations under the License.
     </div>
 
   </div>
-
   &nbsp;
   <div id='histDivTrain'>
     <!-- Plotly chart will be drawn inside this DIV -->
@@ -362,15 +390,23 @@ limitations under the License.
   <div id='histDivTest'>
     <!-- Plotly chart will be drawn inside this DIV -->
   </div>
-
-  &nbsp;
+    &nbsp;
   <div id='KLdivergenceDiv'>
       <!-- insert the KL divergence values per layer of a network -->
   </div>
+  <div id='tableDivTrain'>
+    <!-- insert the table with KL divergence statistics -->
+  </div>
+  <div id='tableDivTest'>
+    <!-- insert the table with KL divergence statistics -->
+  </div>
   &nbsp;
   <div id='KLdivergenceStatsDiv'>
-    <!-- insert the KL divergence statistics over multiple runs per layer of a network -->
+    <!-- insert the KL divergence statistics (cross-validation) over multiple runs per layer of a network -->
   </div>
+
+
+
   <BR>
   <BR>
   <BR>

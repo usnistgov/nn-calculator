@@ -29,6 +29,11 @@ export class AppendingNetworkEfficiency {
   // this is the number of unique states utilized by each class label in he array across all layers
   private stateBinCount_layer_label: number[][];
 
+  // number of states that are used by both classes at the same layer
+  private stateOverlapCount_layer: number[];
+  // the number of bits in all used states by the two classes that are uniquely split the classes
+  private stateBitsNeeded_layer: number [];
+
   constructor() {
     this.reset();
     this.number_classes = 2;
@@ -37,6 +42,7 @@ export class AppendingNetworkEfficiency {
   reset() {
       this.mapGlobal = [];
       this.netEfficiency = [];
+      this.stateOverlapCount_layer = [];
       this.stateBinCount_layer_label = [][this.number_classes ];// number of classes is 2
       this.stateCountMax_layer_label = [][this.number_classes ];
       this.stateCountMin_layer_label = [][this.number_classes ];
@@ -73,6 +79,22 @@ export class AppendingNetworkEfficiency {
   }
   public getGeometricAvgKLdivergence():number{
     return this.geom_avgKLdivergence;
+  }
+
+  // TODO overlapping states and unique bits in states for discrimination of the two classes
+  public compute() {
+    let map = this.getMapGlobal();
+    for (let layerIdx = 0; layerIdx < map.length; layerIdx++) {
+      //split the map global into N and P label specific
+      this.mapGlobal[layerIdx].forEach((value: number, key: string) => {
+
+        if (key.substr(0, 1) === 'N') {
+
+        }
+        console.log("INFO");
+      });
+
+    }
   }
   /**
    * This method compute the inefficiency coefficient of each network layer
@@ -142,7 +164,7 @@ export class AppendingNetworkEfficiency {
     this.arithmetic_avgKLdivergence = 0.0;  // this is to compute arithmetic avg network KL divergence
     this.geom_avgKLdivergence = 1.0;  // this is to compute geometric avg network KL divergence
 
-    let m: number = 2; // number of classes
+    //let m: number = 2; // number of classes
     let p_PLabel: number = countPOne/numEvalSamples; // probability of label P in the training data
     let p_NLabel: number = countNOne/numEvalSamples; // probability of label N in the training data
     console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ' p_PLabel:'+p_PLabel+', p_NLabel:'+p_NLabel);
@@ -170,8 +192,8 @@ export class AppendingNetworkEfficiency {
       // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
 /*      let refProb_NOne: number = 2 * (countNOne / numEvalSamples) * (1 / numBins);
       let refProb_POne: number = 2 * (countPOne / numEvalSamples) * (1 / numBins);*/
-     let refProb_NOne: number = m *  (1 / numBins);
-      let refProb_POne: number = m *  (1 / numBins);
+     let refProb_NOne: number = this.number_classes *  (1 / numBins);
+      let refProb_POne: number = this.number_classes *  (1 / numBins);
 /*      let refProb_NOne: number = 2 * p_NLabel / numBins;
       let refProb_POne: number = 2 * p_PLabel / numBins;*/
       console.log('refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
@@ -241,7 +263,7 @@ export class AppendingNetworkEfficiency {
         console.log('WARNING: layer:' + (layerIdx) + ', netEfficiency:' + this.netEfficiency[layerIdx] + ' is less than zero');
         //this.netEfficiency[layerIdx] = 0;
       }
-      console.log('layer:' + (layerIdx) + ', netEfficiency:' + this.netEfficiency[layerIdx]);
+      console.log('layer:' + (layerIdx) + ': netEfficiency:' + this.netEfficiency[layerIdx]);
       this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence + this.netEfficiency[layerIdx];
       this.geom_avgKLdivergence = this.geom_avgKLdivergence * this.netEfficiency[layerIdx];
     }
@@ -253,7 +275,7 @@ export class AppendingNetworkEfficiency {
     console.log('geometric avg. network efficiency:' + (Math.round(this.geom_avgKLdivergence * 1000) / 1000).toString());
 
     // testing purposes
-    for(let k1=0;k1<this.stateBinCount_layer_label.length;k1++){ //
+/*    for(let k1=0;k1<this.stateBinCount_layer_label.length;k1++){ //
       for(let k2=0;k2<this.stateBinCount_layer_label[k1].length;k2++){
         console.log('stateBinCount['+k1+']['+k2+']='+this.stateBinCount_layer_label[k1][k2] + ", ");
         console.log('stateCountMax['+k1+']['+k2+']='+this.stateCountMax_layer_label[k1][k2] + ", ");
@@ -261,8 +283,7 @@ export class AppendingNetworkEfficiency {
         console.log('stateCountMin['+k1+']['+k2+']='+this.stateCountMin_layer_label[k1][k2] + ", ");
         console.log('stateKeyMin['+k1+']['+k2+']='+this.stateKeyMin_layer_label[k1][k2] + ", ");
       }
-
-    }
+    }*/
     //////////////////////////////////////////////////////////////
 /*    // print the histograms and create histogram visualization
     let hist = new AppendingHistogramChart(this.mapGlobal, this.netEfficiency);
@@ -276,6 +297,78 @@ export class AppendingNetworkEfficiency {
     return this.netEfficiency;
   }
 
+  /**
+   * this method converts the state bin count result for showing in HTML page
+   *  This conversion function was replaced by the tablecharts class to make the results
+   * more readable
+   */
+  public convertStateBinCountToString(): string {
+    let count_states_result: string = '';
+    let stateBinCount_layer_label: number[][] = this.getStateBinCount_layer_label();
+    // sanity check
+    if(stateBinCount_layer_label == null){
+      console.log("ERROR: missing stateBinCount_layer_label");
+      return count_states_result;
+    }
+    for(let k1=0;k1<stateBinCount_layer_label.length;k1++){
+      count_states_result += '&nbsp; layer:' + k1.toString() + ': ';
+      for(let k2=0;k2<stateBinCount_layer_label[k1].length;k2++){
+        if(k2 == 0) {
+          count_states_result += ' Count of states for label: N: ' + stateBinCount_layer_label[k1][k2].toString() + ':';
+        }else{
+          count_states_result += ' Count of states for label: P: ' + stateBinCount_layer_label[k1][k2].toString() + ':';
+        }
+        console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
+      }
+      count_states_result += '<BR>';
+    }
+    return count_states_result;
+  }
+
+  /**
+   * This method is for converting all frequency stats about most and least frequently aoccurring path
+   * along depth of NN. This conversion function was replaced by the tablecharts class to make the results
+   * more readable
+   * @param MaxMin - input flaf 'Max' or 'Min' to indicate whether most (max) or least (min) frequently
+   * results should be converted to a string
+   */
+  public convertStatePath(MaxMin: string): string {
+    let path_states_result: string = '';
+    let printTextMax: string = ' Max Freq of the label-state: ';
+    let printTextMin: string = ' Min Freq of the label-state: ';
+
+    let stateCount_layer_label: number[][] ;
+    let stateKey_layer_label: string[][];
+    let printText: string;
+
+    if(MaxMin == 'Max'){
+      printText = printTextMax;
+      stateCount_layer_label = this.getStateCountMax_layer_label();
+      stateKey_layer_label = this.getStateKeyMax_layer_label();
+    }else{
+      printText = printTextMin;
+      stateCount_layer_label = this.getStateCountMin_layer_label();
+      stateKey_layer_label = this.getStateKeyMin_layer_label();
+    }
+    //sanity check
+    if(stateCount_layer_label == null || stateKey_layer_label == null){
+      console.log("ERROR: missing getStateCount_layer_label for " + MaxMin);
+      return path_states_result;
+    }
+    for (let k1 = 0; k1 < stateCount_layer_label.length; k1++) { //
+      path_states_result += '&nbsp; layer:' + k1.toString() + ': ';
+      for (let k2 = 0; k2 < stateCount_layer_label[k1].length; k2++) {
+        if (k2 == 0) {
+          path_states_result += printText + stateKey_layer_label[k1][k2] + ': is :' + stateCount_layer_label[k1][k2].toString() + ':';
+        } else {
+          path_states_result += printText + stateKey_layer_label[k1][k2] + ': is :' + stateCount_layer_label[k1][k2].toString() + ':';
+        }
+        console.log(printText + ' state[' + k1 + '][' + k2 + ']=' + stateKey_layer_label[k1][k2] + ", max freq: " + stateCount_layer_label[k1][k2]);
+      }
+      path_states_result += '<BR>';
+    }
+    return path_states_result;
+  }
 
 
 }

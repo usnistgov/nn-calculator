@@ -18,23 +18,14 @@ limitations under the License.
 //import Plotly from 'plotly.js-dist';
 import * as d3 from 'd3';
 import * as nn from "./nn";
+import {RegularizationFunction} from "./nn";
 import {HeatMap, reduceMatrix} from "./heatmap";
-import {
-  State,
-  datasets,
-  regDatasets,
-  activations,
-  problems,
-  regularizations,
-  getKeyFromValue,
-  Problem
-} from "./state";
+import {activations, datasets, getKeyFromValue, Problem, problems, regDatasets, regularizations, State} from "./state";
 import {Example2D, shuffle} from "./dataset";
 import {AppendingLineChart} from "./linechart";
-import {RegularizationFunction} from "./nn";
 import {AppendingNetworkEfficiency} from "./networkefficiency";
 import {AppendingHistogramChart} from "./histogramchart";
-import {type} from "os";
+import {AppendingTableChart} from "./tablechart";
 
 let mainWidth;
 
@@ -42,6 +33,12 @@ let baseline_weights: number[] = null; // used for storing baseline model
 let baseline_biases: number[] = null; // used for storing  baseline model
 let count_baseline_add: number = 0; // used for counting the number of models added/subtracted to baseline model
 let count_baseline_subtract: number = 0; // used for counting the number of models added/subtracted to baseline model
+
+let baseline_trainData: Example2D[] = []; // used for storing baseline data
+let baseline_testData: Example2D[] = [];
+let baseline_numSamples_train: number = 0; // number of baseline train data points
+let baseline_numSamples_test: number = 0; // number of baseline test data points
+let baseline_problemType: number = 0; // it is set to classification by default (see state.ts - export enum Problem)
 
 // More scrolling
 d3.select(".more button").on("click", function() {
@@ -64,6 +61,8 @@ const BIAS_SIZE = 5;
 const NUM_SAMPLES_CLASSIFY = 500;
 const NUM_SAMPLES_REGRESS = 1200;
 const DENSITY = 100;
+let current_numSamples_train: number = 0; // this was added to support data part of the calculator
+let current_numSamples_test: number = 0; // this was added to support data part of the calculator
 
 enum HoverType {
   BIAS, WEIGHT
@@ -218,18 +217,115 @@ function makeGUI() {
     oneStep();
   });
 
+  /////////////////////////////////////////////////////////
+  // data calculator operations
   d3.select("#data-regen-button").on("click", () => {
     generateData();
     parametersChanged = true;
   });
+
+  // store data into the baseline data set
+  d3.select("#data-clear-button").on("click", () => {
+    baseline_trainData = null;
+    baseline_testData = null;
+    baseline_problemType = 0;
+    baseline_numSamples_train = 0;
+    baseline_numSamples_test = 0;
+    generateData();
+    parametersChanged = true;
+
+    console.log('INFO: cleared  baseline train and test data sets');
+  });
+
+  // store data into the baseline data set
+  d3.select("#data-store-button").on("click", () => {
+    storeTrainAndTestData();
+     console.log('INFO: stored current train and test data into baseline train and test data sets');
+  });
+
+  // store data into the baseline data set
+  d3.select("#data-add-button").on("click", () => {
+    // check whether this is the first data set stored
+    if(baseline_trainData == null || baseline_testData == null || baseline_numSamples_train <=0){
+      console.log('INFO: first stored data set');
+      storeTrainAndTestData();
+      return;
+    }
+    console.log('TEST: state.problem: ' + state.problem + ", baseline_problemType: " + baseline_problemType);
+
+    // check whether the problem type is the same
+     if(state.problem != baseline_problemType){
+      console.log('ERROR: data sets from classification and regression problems cannot be added');
+      return;
+    }
+     // TODO is the array dynamically allocated (so called lazy initialization)?
+    // add the points
+    let offset = baseline_trainData.length;
+    for (let i = 0; i < trainData.length; i++) {
+      baseline_trainData[offset + i] = trainData[i];
+    }
+    offset = baseline_testData.length;
+    for (let i = 0; i < testData.length; i++) {
+      baseline_testData[offset + i] = testData[i];
+    }
+    baseline_numSamples_train += trainData.length;
+    baseline_numSamples_test += testData.length;
+    console.log('INFO: added current train and test data into baseline train and test data sets');
+  });
+  // remove the last added data set from the baseline data set of points
+  d3.select("#data-remove-button").on("click", () => {
+    // check whether baseline data set is empty
+    if(baseline_trainData == null || baseline_testData == null || baseline_numSamples_train <=0){
+      console.log('ERROR: there is no stored data set');
+      return;
+    }
+    console.log('TEST: state.problem: ' + state.problem + ", baseline_problemType: " + baseline_problemType);
+
+    // check whether the problem type is the same
+    if(state.problem != baseline_problemType){
+      console.log('ERROR: data sets from classification and regression problems cannot be subtracted/mixed');
+      return;
+    }
+    // check whether the train and test lengths of baseline is large enough
+    if(trainData.length >= baseline_trainData.length || testData.length >= baseline_testData.length){
+      console.log('ERROR: the baseline train data set has smaller number of points than the current dataset: train: ' +
+          trainData.length + ", baseline_trainData.length: "  + baseline_trainData.length);
+      console.log('ERROR: the baseline test data set has smaller number of points than the current dataset: train: ' +
+          testData.length + ", baseline_testData.length: "  + baseline_trainData.length);
+      return;
+    }
+    // remove the points using array.splice(start, deleteCount)
+    let offset = baseline_trainData.length - trainData.length;
+    baseline_trainData.splice(offset,trainData.length);
+
+    offset = baseline_testData.length - testData.length;
+    baseline_testData.splice(offset,testData.length);
+
+    baseline_numSamples_train -= trainData.length;
+    baseline_numSamples_test -= testData.length;
+    console.log('INFO: added current train and test data into baseline train and test data sets');
+  });
+
+  // restore data from the baseline data set
+  d3.select("#data-restore-button").on("click", () => {
+    // check that a baseline model has been saved
+    if(baseline_trainData == null || baseline_testData == null){
+      console.log('ERROR: missing baseline train or test data');
+      return;
+    }
+    setTrainAndTestData();
+    parametersChanged = true;
+    console.log('INFO: restored from memory baseline train and test data');
+  });
+
 
 
   // compute network efficiency metrics and show histograms
   d3.select("#data-klmetric-button").on("click", () => {
     // compute KL divergence metric reflecting the NN configurations (weights and biases) from training data points
     // compute the network efficiency per layer
-    let numSamples: number = (state.problem === Problem.REGRESSION) ?
-        NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    //let numSamples: number = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    let numSamples: number = current_numSamples_train + current_numSamples_test;
     /////////////////////////////////////////
     // evaluate training data
     let numEvalSamples: number = numSamples * state.percTrainData / 100;
@@ -243,61 +339,27 @@ function makeGUI() {
     kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
     kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
 
+    /////////////////////////////////////////////////////////////////////////
+    let caption: string = 'Training stats <BR>';
+    let mytable= new AppendingTableChart(netKLcoef);
+    mytable.showTable('tableDivTrain', caption);
+    ////////////////////////////////////////////////////////////////////
+/*
     // append the bin counts of states
     let count_states_result: string = '&nbsp; Bin Count of All States Assigned to Each Class Label Per Layer  <BR>';
-    let stateBinCount_layer_label: number[][] = netKLcoef.getStateBinCount_layer_label();
-    for(let k1=0;k1<stateBinCount_layer_label.length;k1++){ //
-      count_states_result += '&nbsp; layer:' + k1.toString() + ', ';
-      for(let k2=0;k2<stateBinCount_layer_label[k1].length;k2++){
-        if(k2 == 0) {
-          count_states_result += ' Count of states for label N: ' + stateBinCount_layer_label[k1][k2].toString();
-        }else{
-          count_states_result += ' Count of states for label P: ' + stateBinCount_layer_label[k1][k2].toString();
-        }
-        console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
-      }
-      count_states_result += '<BR>';
-    }
+    count_states_result += netKLcoef.convertStateBinCountToString();
     kl_metric_result += count_states_result;
-
 
     // append the most frequently utilized state by each class label in each layer
     let path_states_result: string = '&nbsp; Most frequently utilized state by each class label in each layer  <BR>';
-    let stateCountMax_layer_label: number[][] = netKLcoef.getStateCountMax_layer_label();
-    let stateKeyMax_layer_label: string[][] = netKLcoef.getStateKeyMax_layer_label();
-
-    for(let k1=0;k1<stateCountMax_layer_label.length;k1++){ //
-      path_states_result += '&nbsp; layer:' + k1.toString() + ', ';
-      for(let k2=0;k2<stateCountMax_layer_label[k1].length;k2++){
-        if(k2 == 0) {
-          path_states_result += ' Max Freq of the label-state: ' + stateKeyMax_layer_label[k1][k2] + ' is: ' + stateCountMax_layer_label[k1][k2].toString();
-        }else{
-          path_states_result += ' Max Freq of the label-state: ' + stateKeyMax_layer_label[k1][k2] + ' is: ' + stateCountMax_layer_label[k1][k2].toString();
-        }
-        console.log('max state['+k1+']['+k2+']='+stateKeyMax_layer_label[k1][k2] + ", max freq: " + stateCountMax_layer_label[k1][k2]);
-      }
-      path_states_result += '<BR>';
-    }
+    path_states_result += netKLcoef.convertStatePath('Max');
     kl_metric_result += path_states_result;
 
     // append the least frequently utilized state by each class label in each layer
     path_states_result = '&nbsp; Least frequently utilized state by each class label in each layer  <BR>';
-    let stateCountMin_layer_label: number[][] = netKLcoef.getStateCountMin_layer_label();
-    let stateKeyMin_layer_label: string[][] = netKLcoef.getStateKeyMin_layer_label();
-
-    for(let k1=0;k1<stateCountMax_layer_label.length;k1++){ //
-      path_states_result += '&nbsp; layer:' + k1.toString() + ', ';
-      for(let k2=0;k2<stateCountMin_layer_label[k1].length;k2++){
-        if(k2 == 0) {
-          path_states_result += ' Min Freq of the label-state: ' + stateKeyMin_layer_label[k1][k2] + ' is: ' + stateCountMin_layer_label[k1][k2].toString();
-        }else{
-          path_states_result += ' Min Freq of the label-state: ' + stateKeyMin_layer_label[k1][k2] + ' is: ' + stateCountMin_layer_label[k1][k2].toString();
-        }
-        console.log('min state['+k1+']['+k2+']='+stateKeyMin_layer_label[k1][k2] + ", min freq: " + stateCountMin_layer_label[k1][k2]);
-      }
-      path_states_result += '<BR>';
-    }
+    path_states_result += netKLcoef.convertStatePath('Min');
     kl_metric_result += path_states_result;
+*/
 
     ///////////////////////////////////////////////////////////////////////
     // evaluate test data
@@ -312,23 +374,28 @@ function makeGUI() {
     kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
     kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
 
-    count_states_result = '&nbsp; Count States Assigned to Each Class Label Per Layer  <BR>';
-    stateBinCount_layer_label= netKLcoef.getStateBinCount_layer_label();
-    for(let k1=0;k1<stateBinCount_layer_label.length;k1++){ //
-      count_states_result += '&nbsp; layer:' + k1.toString() + ', ';
-      for(let k2=0;k2<stateBinCount_layer_label[k1].length;k2++){
-        if(k2 == 0) {
-          count_states_result += ' Count of states for label N: ' + stateBinCount_layer_label[k1][k2].toString();
-        }else{
-          count_states_result += ' Count of states for label P: ' + stateBinCount_layer_label[k1][k2].toString();
-        }
-        console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
-      }
-      count_states_result += '<BR>';
-    }
+    /////////////////////////////////////////////////////////////////////////
+    caption = 'Testing stats <BR>';
+    let mytableTest= new AppendingTableChart(netKLcoef);
+    mytableTest.showTable('tableDivTest', caption);
+    ////////////////////////////////////////////////////////////////////
+
+    /*
+    // append the bin counts of states
+    count_states_result  = '&nbsp; Bin Count of All States Assigned to Each Class Label Per Layer  <BR>';
+    count_states_result += netKLcoef.convertStateBinCountToString();
     kl_metric_result += count_states_result;
 
+    // append the most frequently utilized state by each class label in each layer
+    path_states_result = '&nbsp; Most frequently utilized state by each class label in each layer  <BR>';
+    path_states_result += netKLcoef.convertStatePath('Max');
+    kl_metric_result += path_states_result;
 
+    // append the least frequently utilized state by each class label in each layer
+    path_states_result = '&nbsp; Least frequently utilized state by each class label in each layer  <BR>';
+    path_states_result += netKLcoef.convertStatePath('Min');
+    kl_metric_result += path_states_result;
+*/
     let element = document.getElementById("KLdivergenceDiv");
     element.innerHTML = kl_metric_result;
 
@@ -342,8 +409,9 @@ function makeGUI() {
     let idx: number;
     let xvalIdx: number;
 
-    let numSamples: number = (state.problem === Problem.REGRESSION) ?
-        NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    //let numSamples: number = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+    let numSamples: number = current_numSamples_train + current_numSamples_test;
+
     let numEvalSamples: number = numSamples * state.percTrainData / 100;
     let netKLcoef = new AppendingNetworkEfficiency();
     let sum: number []  = []; // average sum
@@ -396,7 +464,7 @@ function makeGUI() {
   });
 
   // clear weights and biases for the baseline network
-  d3.select("#data-clear-button").on("click", () => {
+  d3.select("#nn-clear-button").on("click", () => {
     baseline_weights = null;
     baseline_biases = null;
     count_baseline_add = 0;
@@ -404,7 +472,7 @@ function makeGUI() {
     console.log('INFO: cleared baseline weights and biases');
   });
   // store weights and biases for the baseline network
-  d3.select("#data-storemmodel-button").on("click", () => {
+  d3.select("#nn-storemmodel-button").on("click", () => {
     baseline_weights = null;
     baseline_biases = null;
     baseline_weights = getOutputWeights(network);
@@ -414,7 +482,7 @@ function makeGUI() {
     console.log('INFO: set memory to baseline weights and biases');
   });
   // restore weights and biases from the baseline network
-  d3.select("#data-restoremodel-button").on("click", () => {
+  d3.select("#nn-restoremodel-button").on("click", () => {
 
     // check that a baseline model has been saved
     if(baseline_weights == null || baseline_biases == null){
@@ -434,7 +502,7 @@ function makeGUI() {
   });
 
   // subtract the current model weights and biases from baseline weights and biases and set the model
-  d3.select("#data-subtract-button").on("click", () => {
+  d3.select("#nn-subtract-button").on("click", () => {
 
     // this is the case of subtracting a model from zero/empty baseline
     if(baseline_weights == null || baseline_biases == null){
@@ -487,7 +555,7 @@ function makeGUI() {
   });
 
   // add the current model weights and biases and the baseline weights and biases
-  d3.select("#data-add-button").on("click", () => {
+  d3.select("#nn-add-button").on("click", () => {
 
     // this is the case of adding a model to zero/empty baseline model
     if(baseline_weights == null || baseline_biases == null){
@@ -531,7 +599,7 @@ function makeGUI() {
     //writeNetwork(network);
   });
   // average all baseline weights and biases based on the number of added models
-  d3.select("#data-avg-button").on("click", () => {
+  d3.select("#nn-avg-button").on("click", () => {
 
     if(baseline_weights == null || baseline_biases == null){
       console.log('ERROR: missing baseline weights and biases');
@@ -564,7 +632,7 @@ function makeGUI() {
   // https://github.com/microsoft/onnxjs
   // resnet50 demo using ONNX.js - https://microsoft.github.io/onnxjs-demo/#/resnet50
   // we need a write in JavaScript - https://github.com/onnx/tutorials
-  d3.select("#data-save-button").on("click", () => {
+  d3.select("#nn-save-button").on("click", () => {
     writeNetwork(network);
   });
 
@@ -1410,7 +1478,8 @@ export function getWriteNetworkData(network: nn.Node[][]): string {
   }
 
   weights += "number of samples:";
-  (curState.problem === Problem.REGRESSION) ?  weights += NUM_SAMPLES_REGRESS + "\n" : weights += NUM_SAMPLES_CLASSIFY + "\n";
+  //(curState.problem === Problem.REGRESSION) ?  weights += NUM_SAMPLES_REGRESS + "\n" : weights += NUM_SAMPLES_CLASSIFY + "\n";
+  weights += (baseline_numSamples_train + baseline_numSamples_test).toString()  + "\n";
 
   weights += "noise:" + curState.noise + "\n";
   weights += "trojan:" + curState.trojan + "\n";
@@ -1659,8 +1728,8 @@ function generateData(firstTime = false) {
     userHasInteracted();
   }
   Math.seedrandom(state.seed);
-  let numSamples = (state.problem === Problem.REGRESSION) ?
-      NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  let numSamples = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+
   let generator = state.problem === Problem.CLASSIFICATION ?
       state.dataset : state.regDataset;
   let data = generator(numSamples, state.noise / 100, state.trojan);
@@ -1670,8 +1739,90 @@ function generateData(firstTime = false) {
   let splitIndex = Math.floor(data.length * state.percTrainData / 100);
   trainData = data.slice(0, splitIndex);
   testData = data.slice(splitIndex);
+  // added to support the data calculator
+  current_numSamples_train = trainData.length;
+  current_numSamples_test = testData.length;
   heatMap.updatePoints(trainData);
   heatMap.updateTestPoints(state.showTestData ? testData : []);
+}
+
+// this function is used by the data part of the calculator
+function setTrainAndTestData() {
+  if (baseline_numSamples_train <= 0) {
+    console.log("ERROR: the baseline training data set is empty. NumSamples = " + baseline_numSamples_train);
+    return;
+  }
+  console.log("INFO: setTrainAndTestData: the baseline training data NumSamples = " + baseline_numSamples_train + ", problem type " + baseline_problemType);
+  // set the problem type
+  state.problem = (baseline_problemType === Problem.REGRESSION) ? Problem.REGRESSION : Problem.CLASSIFICATION;
+  console.log("INFO: state.problem:: " + state.problem.toString());
+
+  // update the drop-down menu for problem type
+  let mySelect = <HTMLSelectElement>document.getElementById("problem");
+  if (mySelect === null) {
+    console.log("ERROR:missing problem type in index.html:" + mySelect);
+  } else {
+    console.log("current selection of problem: " + mySelect.selectedIndex); // 1
+    // return the value of the selected option
+    console.log("current value of problem type selection: " + mySelect.options[mySelect.selectedIndex].value) // Second
+
+    let current_problemType = mySelect.selectedIndex;
+    if (state.problem === Problem.CLASSIFICATION) {
+      mySelect.selectedIndex = 0;
+    } else {
+      mySelect.selectedIndex = 1;
+    }
+    if(current_problemType != mySelect.selectedIndex ){
+      // refresh the dataset icons
+      drawDatasetThumbnails();
+      console.log("refreshed data sets because of change of problem type");
+    }
+    parametersChanged = true;
+    reset();
+  }
+  // set the number of data points
+  current_numSamples_train = baseline_trainData.length;
+  current_numSamples_test = baseline_testData.length;
+
+  // copy the data points
+  for (let i = 0; i < baseline_trainData.length; i++) {
+     trainData[i] = baseline_trainData[i];
+  }
+  for (let i = 0; i < baseline_testData.length; i++) {
+     testData[i] = baseline_testData[i];
+  }
+
+  //drawDatasetThumbnails();
+  parametersChanged = true;
+  reset();
+
+  heatMap.updatePoints(trainData);
+  heatMap.updateTestPoints(state.showTestData ? testData : []);
+
+}
+
+// this function is used by the data calculator
+function storeTrainAndTestData(){
+
+  if(trainData == null || testData == null || trainData.length < 1 || testData.length < 1){
+    console.log("ERROR: trainData or testData is null or their length is less than 1");
+    return;
+  }
+  console.log("TEST: current state problemType: " + state.problem + ", current num sample in train:" + trainData.length);
+  baseline_problemType = state.problem;
+  baseline_numSamples_train = trainData.length;
+  baseline_numSamples_test = testData.length;
+
+  baseline_trainData = [];
+  baseline_testData = [];
+
+  // copy the data points
+  for (let i = 0; i < trainData.length; i++) {
+    baseline_trainData[i] = trainData[i];
+  }
+  for (let i = 0; i < testData.length; i++) {
+    baseline_testData[i] = testData[i];
+  }
 }
 
 function swapDataLabels(firstTime = false) {
@@ -1682,8 +1833,9 @@ function swapDataLabels(firstTime = false) {
     userHasInteracted();
   }
   Math.seedrandom(state.seed);
-  let numSamples = (state.problem === Problem.REGRESSION) ?
-      NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  //let numSamples = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  let numSamples =   current_numSamples_train + current_numSamples_test;
+
   let generator = state.problem === Problem.CLASSIFICATION ?
       state.dataset : state.regDataset;
   let data = generator(numSamples, state.noise / 100, state.trojan );

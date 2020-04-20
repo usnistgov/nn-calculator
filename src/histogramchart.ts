@@ -23,7 +23,7 @@ export class AppendingHistogramChart {
   constructor(mapGlobal: object[], netEfficiency: number[] ) {
     this.reset();
     // init the KL string
-    this.kl_metric_result = "&nbsp; Estimated Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
+    this.kl_metric_result = "&nbsp; Approx. Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
     this.createHistogramInputs(mapGlobal, netEfficiency);
 
   }
@@ -139,6 +139,8 @@ export class AppendingHistogramChart {
         });
       }
     }
+
+
 
 
 }
