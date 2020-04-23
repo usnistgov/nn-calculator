@@ -26,6 +26,7 @@ import {AppendingLineChart} from "./linechart";
 import {AppendingNetworkEfficiency} from "./networkefficiency";
 import {AppendingHistogramChart} from "./histogramchart";
 import {AppendingTableChart} from "./tablechart";
+import {AppendingInputOutput} from "./io";
 
 let mainWidth;
 
@@ -39,6 +40,7 @@ let baseline_testData: Example2D[] = [];
 let baseline_numSamples_train: number = 0; // number of baseline train data points
 let baseline_numSamples_test: number = 0; // number of baseline test data points
 let baseline_problemType: number = 0; // it is set to classification by default (see state.ts - export enum Problem)
+let netKLcoef = new AppendingNetworkEfficiency();
 
 // More scrolling
 d3.select(".more button").on("click", function() {
@@ -63,6 +65,13 @@ const NUM_SAMPLES_REGRESS = 1200;
 const DENSITY = 100;
 let current_numSamples_train: number = 0; // this was added to support data part of the calculator
 let current_numSamples_test: number = 0; // this was added to support data part of the calculator
+
+export function getCurrent_numSamples_train() {
+  return current_numSamples_train;
+}
+export function getCurrent_numSamples_test() {
+  return current_numSamples_test;
+}
 
 enum HoverType {
   BIAS, WEIGHT
@@ -321,7 +330,7 @@ function makeGUI() {
 
 
   // compute network efficiency metrics and show histograms
-  d3.select("#data-klmetric-button").on("click", () => {
+  d3.select("#data-nn-klmetric-button").on("click", () => {
     // compute KL divergence metric reflecting the NN configurations (weights and biases) from training data points
     // compute the network efficiency per layer
     //let numSamples: number = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
@@ -329,20 +338,32 @@ function makeGUI() {
     /////////////////////////////////////////
     // evaluate training data
     let numEvalSamples: number = numSamples * state.percTrainData / 100;
-    let netKLcoef = new AppendingNetworkEfficiency();
-    let netEfficiency: number[] = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+     let success: boolean = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+    if (!success){
+      console.log('ERROR: KL divergence computation for train data failed');
+      return;
+    }
+    let netEfficiency_N: number[] = netKLcoef.getNetEfficiency_N();
+    let netEfficiency_P: number[] = netKLcoef.getNetEfficiency_P();
 
     // print the histograms and create histogram visualization
-    let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency);
-    let kl_metric_result: string = '&nbsp; TRAIN data <BR>' + hist.showKLHistogram('histDivTrain');
+    let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N, netEfficiency_P);
+    let title: string = 'Train data: state histogram';
+    let kl_metric_result: string = '&nbsp; TRAIN data <BR>' + hist.showKLHistogram('histDivTrain', title);
 
-    kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
-    kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
 
+    //  compute the extra information for the table with state info
+    netKLcoef.computeLabelPredictionOverlap();
     /////////////////////////////////////////////////////////////////////////
-    let caption: string = 'Training stats <BR>';
+    let caption: string = 'Train data: KL divergence info  <BR>';
     let mytable= new AppendingTableChart(netKLcoef);
-    mytable.showTable('tableDivTrain', caption);
+    mytable.showTableKL('tableKLDivTrain', caption);
+    caption = 'Train data: unique state info <BR>';
+    mytable.showTableOverlap('tableOverlapDivTrain', caption);
+    caption = 'Train data: all non-zero states <BR>';
+    mytable.showTableStates('tableStatesDivTrain',caption);
     ////////////////////////////////////////////////////////////////////
 /*
     // append the bin counts of states
@@ -365,19 +386,32 @@ function makeGUI() {
     // evaluate test data
     numEvalSamples = numSamples * (100 - state.percTrainData) / 100;
     netKLcoef.reset();
-    netEfficiency = netKLcoef.getNetworkInefficiencyPerLayer(network,testData, numEvalSamples);
+    success = netKLcoef.getNetworkInefficiencyPerLayer(network,testData, numEvalSamples);
+    if (!success){
+      console.log('ERROR: KL divergence computation for test data failed');
+      return;
+    }
+    netEfficiency_N = netKLcoef.getNetEfficiency_N();
+    netEfficiency_P = netKLcoef.getNetEfficiency_P();
 
     // print the histograms and create histogram visualization
-    let histTest = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency);
-    kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest');
+    let histTest = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N, netEfficiency_P);
+    title = 'Test data: state histogram';
+    kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest', title);
 
-    kl_metric_result += '&nbsp; arithmetic avg KL value:' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
-    kl_metric_result += '&nbsp; geometric avg KL value:' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
 
+    //  compute the extra information for the table with state info
+    netKLcoef.computeLabelPredictionOverlap();
     /////////////////////////////////////////////////////////////////////////
-    caption = 'Testing stats <BR>';
+    caption = 'Test data: KL divergence info <BR>';
     let mytableTest= new AppendingTableChart(netKLcoef);
-    mytableTest.showTable('tableDivTest', caption);
+    mytableTest.showTableKL('tableKLDivTest', caption);
+    caption = 'Test data: unique state info <BR>';
+    mytableTest.showTableOverlap('tableOverlapDivTest', caption);
+    caption = 'Test data: all non-zero states <BR>';
+    mytableTest.showTableStates('tableStatesDivTest',caption);
     ////////////////////////////////////////////////////////////////////
 
     /*
@@ -396,13 +430,14 @@ function makeGUI() {
     path_states_result += netKLcoef.convertStatePath('Min');
     kl_metric_result += path_states_result;
 */
+
     let element = document.getElementById("KLdivergenceDiv");
     element.innerHTML = kl_metric_result;
 
   });
 
   // compute variation (average and stdev) of KL divergence over multiple runs (cross -validations)
-  d3.select("#data-xvalmetric-button").on("click", () => {
+  d3.select("#data-nn-xvalmetric-button").on("click", () => {
 
     let maxRuns: number = 3; // number of runs
     let max_epoch: number = 50; // number of epochs per run
@@ -414,8 +449,10 @@ function makeGUI() {
 
     let numEvalSamples: number = numSamples * state.percTrainData / 100;
     let netKLcoef = new AppendingNetworkEfficiency();
-    let sum: number []  = []; // average sum
-    let sum2: number [] = []; // stdev sum2
+    let sum_N: number []  = []; // average sum
+    let sum2_N: number [] = []; // stdev sum2
+    let sum_P: number []  = []; // average sum
+    let sum2_P: number [] = []; // stdev sum2
 
     // these loops go over the number of cross-validation runs (maxRuns)
     // and over the number of steps (or epochs of training in each cross-validation run)
@@ -432,35 +469,71 @@ function makeGUI() {
         oneStep();
       }
 
-      let netEfficiency: number[] = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+      let success: boolean = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+      if (!success){
+        console.log('ERROR: KL divergence computation for train data failed in the run ID:' + xvalIdx);
+        return;
+      }
+      let netEfficiency_N: number[] = netKLcoef.getNetEfficiency_N();
+      let netEfficiency_P: number[] = netKLcoef.getNetEfficiency_P();
+      // sanity check
+      if(netEfficiency_N.length != netEfficiency_P.length){
+        console.log('ERROR: unequal length of netEfficiency_N.length:' + netEfficiency_N.length + ', netEfficiency_P.length:'+netEfficiency_P.length);
+        return;
+      }
       if (xvalIdx == 0) {
-        for (let i = 0; i < netEfficiency.length; i++) {
-            sum[i] = 0.0;
-            sum2[i] = 0.0;
+        for (let i = 0; i < netEfficiency_N.length; i++) {
+            sum_N[i] = 0.0;
+            sum2_N[i] = 0.0;
+            sum_P[i] = 0.0;
+            sum2_P[i] = 0.0;
         }
       }
-      for (let i = 0; i < netEfficiency.length; i++) {
-        sum[i] += netEfficiency[i];
-        sum2[i] += netEfficiency[i]*netEfficiency[i];
+      for (let i = 0; i < netEfficiency_N.length; i++) {
+        sum_N[i] += netEfficiency_N[i];
+        sum2_N[i] += netEfficiency_N[i]*netEfficiency_N[i];
+        sum_P[i] += netEfficiency_P[i];
+        sum2_P[i] += netEfficiency_P[i]*netEfficiency_P[i];
       }
 
     }
 
     let kl_stats: string = '&nbsp; KL divergence stats over '+ maxRuns.toString() + ' cross-validation runs and max epochs ' + max_epoch.toString() + '<BR>';
     // compute average and stdev of each KL divergence value per layer
-    for (let i = 0; i < sum.length; i++) {
-      sum2[i] = sum2[i] - sum[i] * sum[i]/maxRuns;
-      sum2[i] = Math.sqrt(sum2[i]/maxRuns);
+    for (let i = 0; i < sum_N.length; i++) {
+      // stdev for N
+      sum2_N[i] = sum2_N[i] - sum_N[i] * sum_N[i]/maxRuns;
+      sum2_N[i] = Math.sqrt(sum2_N[i]/maxRuns);
+      // avg for N
+      sum_N[i] = sum_N[i]/maxRuns;
+      // stdev for P
+      sum2_P[i] = sum2_P[i] - sum_P[i] * sum_P[i]/maxRuns;
+      sum2_P[i] = Math.sqrt(sum2_P[i]/maxRuns);
+      // avg for P
+      sum_P[i] = sum_P[i]/maxRuns;
 
-      sum[i] = sum[i]/maxRuns;
-
-      console.log('layer:'+i+", avg KL:" + sum[i] + ', stdev KL:' + sum2[i]);
-      kl_stats += '&nbsp; layer:' + i.toString() + ', avg KL:' + (Math.round(sum[i]*1000)/1000).toString() + ', stdev KL:' + (Math.round(sum2[i]*1000)/1000).toString() + '<BR>';
+      console.log('layer:'+i+", avg KL(N):" + sum_N[i] + ', stdev KL(N):' + sum2_N[i]);
+      console.log('layer:'+i+", avg KL(P):" + sum_P[i] + ', stdev KL(P):' + sum2_P[i]);
+      kl_stats += '&nbsp; layer:' + i.toString() + ', avg KL(N):' + (Math.round(sum_N[i]*1000)/1000).toString() + ', stdev KL(N):'
+          + (Math.round(sum2_N[i]*1000)/1000).toString() + '<BR>';
+      kl_stats += '&nbsp; layer:' + i.toString() + ', avg KL(P):' + (Math.round(sum_P[i]*1000)/1000).toString() + ', stdev KL(P):'
+          + (Math.round(sum2_P[i]*1000)/1000).toString() + '<BR>';
     }
 
      let element = document.getElementById("KLdivergenceStatsDiv");
      element.innerHTML = kl_stats;
 
+  });
+
+  // inference button with the current data set and nn model
+  d3.select("#data-nn-infer-button").on("click", () => {
+    // Compute the loss.
+    lossTrain = getLoss(network, trainData);
+    lossTest = getLoss(network, testData);
+    updateUI();
+
+    console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
+    console.log('INFO: inference with the current data set and nn model');
   });
 
   // clear weights and biases for the baseline network
@@ -632,8 +705,15 @@ function makeGUI() {
   // https://github.com/microsoft/onnxjs
   // resnet50 demo using ONNX.js - https://microsoft.github.io/onnxjs-demo/#/resnet50
   // we need a write in JavaScript - https://github.com/onnx/tutorials
-  d3.select("#nn-save-button").on("click", () => {
-    writeNetwork(network);
+  d3.select("#save-nn-button").on("click", () => {
+    let myio= new AppendingInputOutput();
+    myio.writeNetwork(network);
+  });
+  d3.select("#save-statehist-button").on("click", () => {
+    let myio= new AppendingInputOutput();
+    myio.writeStateHist(netKLcoef);
+    myio.writeKLdivergence(netKLcoef);
+    myio.writeOverlapStates(netKLcoef);
   });
 
 
@@ -1464,7 +1544,7 @@ export function setOutputWeights(network: nn.Node[][], weights: number[]): boole
   }
   return true;
 }
-
+/*
 // this method prepares all data for saving a network model
 export function getWriteNetworkData(network: nn.Node[][]): string {
   let weights: string;
@@ -1558,6 +1638,7 @@ export function getWriteNetworkData(network: nn.Node[][]): string {
 
   return weights;
 }
+*/
 // get the current network biases
 export function getOutputBiases(network: nn.Node[][]): number[] {
   let biases: number[] = [];
@@ -1875,6 +1956,7 @@ function simulationStarted() {
   parametersChanged = false;
 }
 
+/*
 /////////////////////////////////////////
 // TODO figure out how to format to follow the ONNX standard
 function writeNetwork(network: nn.Node[][]) {
@@ -1897,7 +1979,7 @@ function download(strData, strFileName, strMimeType) {
 
   if (navigator.msSaveBlob) { // IE10
     return navigator.msSaveBlob(new Blob([strData], {type: strMimeType}), strFileName);
-  } /* end if(navigator.msSaveBlob) */
+  }
 
 
   if ('download' in a) { //html5 A[download]
@@ -1910,7 +1992,8 @@ function download(strData, strFileName, strMimeType) {
       D.body.removeChild(a);
     }, 66);
     return true;
-  } /* end if('download' in a) */
+  } // end if('download' in a)
+
 
 
   //do iframe dataURL download (old ch+FF):
@@ -1922,8 +2005,8 @@ function download(strData, strFileName, strMimeType) {
     D.body.removeChild(f);
   }, 333);
   return true;
-} /* end download() */
-
+} // end download()
+*/
 
 drawDatasetThumbnails();
 initTutorial();

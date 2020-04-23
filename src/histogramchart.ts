@@ -20,11 +20,11 @@ export class AppendingHistogramChart {
   private kl_metric_result: string;
 
 
-  constructor(mapGlobal: object[], netEfficiency: number[] ) {
+  constructor(mapGlobal: object[], netEfficiency_N: number[], netEfficiency_P: number[] ) {
     this.reset();
     // init the KL string
     this.kl_metric_result = "&nbsp; Approx. Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
-    this.createHistogramInputs(mapGlobal, netEfficiency);
+    this.createHistogramInputs(mapGlobal, netEfficiency_N, netEfficiency_P);
 
   }
 
@@ -40,13 +40,13 @@ export class AppendingHistogramChart {
    * This method is the main access point to the class for showing the plot
    * it assumes that the class has been initiated and the method createHistogramInputs has been called
    */
-  public showKLHistogram(html_tag:string): string {
+  public showKLHistogram(html_tag:string, title:string): string {
     //sanity check
     if(this.x_bin == null || this.x_axis,this == null ||this.y_axis == null || this.colorBar == null){
       console.log("ERROR: the KLHistogram class has not been initialized with the method createHistogramInputs");
       return;
     }
-    this.showOneHistogram(this.x_bin, this.x_axis,this.y_axis, this.colorBar, html_tag);
+    this.showOneHistogram(this.x_bin, this.x_axis,this.y_axis, this.colorBar, html_tag, title);
     return this.kl_metric_result;
   }
 
@@ -57,7 +57,7 @@ export class AppendingHistogramChart {
    * @param y_axis - histogram counts
    * @param colorBar - color assign to each subset of bars
    */
-  private showOneHistogram(x_bin:number[], x_axis: string[], y_axis:number[], colorBar:string[], html_tag: string){
+  private showOneHistogram(x_bin:number[], x_axis: string[], y_axis:number[], colorBar:string[], html_tag: string, title:string){
     var trace = {
       x: x_bin,
       y: y_axis,
@@ -82,7 +82,7 @@ export class AppendingHistogramChart {
       bargap: 0.05,
       bargroupgap: 0.2,
       //barmode: "overlay",
-      title: "Histogram of Node Outputs Per Layer" ,
+      title: title ,
       margin: {
         l: 50,
         r: 50,
@@ -96,7 +96,7 @@ export class AppendingHistogramChart {
         hoverformat: '.1f'
       },
       xaxis: {
-        title: "Layer ID - Output Label - Layer Node Outputs",
+        title: "Layer ID - Output Label - State",
         tickmode: "array", // If "array", the placement of the ticks is set via `tickvals` and the tick text is `ticktext`.
         tickvals: x_bin,//[1, 2, 3, 4, 5, 6, 7, 8, 9],
         ticktext: x_axis
@@ -109,7 +109,7 @@ export class AppendingHistogramChart {
     Plotly.newPlot(html_tag, [trace], layout);
   }
 
-  private createHistogramInputs(mapGlobal, netEfficiency){
+  private createHistogramInputs(mapGlobal, netEfficiency_N,netEfficiency_P){
     //////////////////////////////////////////////////////////////
     // print the histograms and create histogram visualization
     // init the arrays
@@ -119,10 +119,12 @@ export class AppendingHistogramChart {
     this.colorBar= [];
 
     let index = 0;
-    for (let idx = 0; idx < netEfficiency.length; idx++) {
+    for (let idx = 0; idx < netEfficiency_N.length; idx++) {
       //for (let idx = 0; idx < network_length - 1; idx++) {
-        this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value:' + (Math.round(netEfficiency[idx] * 1000)/1000).toString() + "<BR>";
-        let localIdx = 0;
+      // these values are now presented in the table
+      //this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value(N):' + (Math.round(netEfficiency_N[idx] * 1000)/1000).toString() + "<BR>";
+      //this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value(P):' + (Math.round(netEfficiency_P[idx] * 1000)/1000).toString() + "<BR>";
+      let localIdx = 0;
         let temp = ((idx+1) * 100)%255;
         //console.log('final histogram - layer:' + idx + ', color:' + temp.toString(10));
         mapGlobal[idx].forEach((value: number, key: string) => {

@@ -17,7 +17,8 @@ import {Example2D} from "./dataset";
  */
 export class AppendingNetworkEfficiency {
   private number_classes: number;
-  private netEfficiency: number[];
+  private netEfficiency_N: number[];
+  private netEfficiency_P: number[];
   private arithmetic_avgKLdivergence: number;
   private geom_avgKLdivergence: number;
   private mapGlobal = null;
@@ -26,13 +27,17 @@ export class AppendingNetworkEfficiency {
   private stateCountMin_layer_label: number[][];
   private stateKeyMax_layer_label: string[][];
   private stateKeyMin_layer_label: string[][];
-  // this is the number of unique states utilized by each class label in he array across all layers
+  // this is the number of unique states utilized by each class label in the array across all layers
   private stateBinCount_layer_label: number[][];
 
   // number of states that are used by both classes at the same layer
   private stateOverlapCount_layer: number[];
+
+  // these are the states that are used for predicting both P and N labels in each layer
+  private stateLabelOverlap_layer: string[][];
+
   // the number of bits in all used states by the two classes that are uniquely split the classes
-  private stateBitsNeeded_layer: number [];
+  private stateConstantBits_layer_label: string [][];
 
   constructor() {
     this.reset();
@@ -41,7 +46,8 @@ export class AppendingNetworkEfficiency {
 
   reset() {
       this.mapGlobal = [];
-      this.netEfficiency = [];
+      this.netEfficiency_N = [];
+      this.netEfficiency_P = [];
       this.stateOverlapCount_layer = [];
       this.stateBinCount_layer_label = [][this.number_classes ];// number of classes is 2
       this.stateCountMax_layer_label = [][this.number_classes ];
@@ -50,10 +56,19 @@ export class AppendingNetworkEfficiency {
       this.stateKeyMin_layer_label = [][this.number_classes ];
       this.arithmetic_avgKLdivergence = -1;
       this.geom_avgKLdivergence = -1;
+      this.stateLabelOverlap_layer = [];
+      this.stateConstantBits_layer_label = [];
   }
 
   public getMapGlobal():any[]{
     return this.mapGlobal;
+  }
+
+  public getStateLabelOverlap_layer():string[][]{
+    return this.stateLabelOverlap_layer;
+  }
+  public getStateConstantBits_layer_label():string[][]{
+    return this.stateConstantBits_layer_label;
   }
 
   public getStateBinCount_layer_label():number[][]{
@@ -71,8 +86,11 @@ export class AppendingNetworkEfficiency {
   public getStateKeyMin_layer_label():string[][]{
     return this.stateKeyMin_layer_label;
   }
-  public getNetEfficiency():number[]{
-    return this.netEfficiency;
+  public getNetEfficiency_N():number[]{
+    return this.netEfficiency_N;
+  }
+  public getNetEfficiency_P():number[]{
+    return this.netEfficiency_P;
   }
   public getArithmeticAvgKLdivergence():number{
     return this.arithmetic_avgKLdivergence;
@@ -81,18 +99,124 @@ export class AppendingNetworkEfficiency {
     return this.geom_avgKLdivergence;
   }
 
+  //////////////////////////////////////////////////////////////////////////////
   // TODO overlapping states and unique bits in states for discrimination of the two classes
-  public compute() {
+  public computeLabelPredictionOverlap() {
     let map = this.getMapGlobal();
+    // sanity check
+    if(map == null || map.length < 1){
+      console.log('ERROR: missing mapGlobal information about states');
+      return;
+    }
+
+    let layerState_N: string []= [];
+    let layerState_P: string []= [];
+    let idx_N: number = 0;
+    let idx_P: number = 0;
+    let i, j, k: number;
+    let countOverlap: number = 0; // this is the counter of overlapping states per layer
+    let countConstantBits: number = 0; // this is the counter of teh constant bits per layer
     for (let layerIdx = 0; layerIdx < map.length; layerIdx++) {
       //split the map global into N and P label specific
+      idx_N = idx_P = 0;
+      countOverlap = 0;
+      countConstantBits = 0;
+      this.stateLabelOverlap_layer[layerIdx] = [];
+      this.stateConstantBits_layer_label[layerIdx] = [];
+
       this.mapGlobal[layerIdx].forEach((value: number, key: string) => {
 
         if (key.substr(0, 1) === 'N') {
-
+            // this is label N
+            layerState_N[idx_N] = key.substr(2, key.length -1);
+            idx_N++;
+        }else{
+          // this is label P
+            layerState_P[idx_P] = key.substr(2, key.length -1);
+            idx_P++;
         }
         console.log("INFO");
       });
+      // find overlapping states
+      for( i = 0; i < idx_N; i++){
+        for( j = 0; j < idx_P; j++) {
+          if (layerState_N[i].match(layerState_P[j])){
+            // found match of the state that is used for predicting  P and N labels
+            this.stateLabelOverlap_layer[layerIdx][countOverlap] = layerState_N[i];
+            countOverlap ++;
+            console.log('INFO:layer: ' + layerIdx + ', overlapping state:' + layerState_N[i]);
+          }
+        }
+      }
+      // sanity check
+      if(idx_N < 1 || idx_P < 1){
+        console.log('INFO:layer: ' + layerIdx + ', predicts only one label - num N labels:' + idx_N + ', num P labels: ' + idx_P);
+        return;
+      }
+      // find constant bits across all states per label
+      let bitHist: number [] = [];
+      let oneBit: string;
+      let numBits: number = layerState_N[0].length;
+
+      //////////////////////////////////////
+      // analyze label N for redundancy in the number of bits (i.e., number of nodes)
+      for(k = 0; k < numBits; k++){
+        bitHist[k] = 0;
+      }
+      for(i = 0; i < idx_N; i++){
+        for(k = 0; k < numBits; k++){
+          oneBit = layerState_N[i].substr(k,k+1);
+          if( parseInt(oneBit) > 0 ) {
+            // count the number of 1s in the k-th bit of the states 0 to idx_N
+            bitHist[k]++;
+          }
+        }
+      }
+      for(k = 0; k < numBits; k++){
+        console.log('INFO: label N: bitHist[' + k + ']=' + bitHist[k] + ', idx_N:' + idx_N);
+        if( bitHist[k] == 0) {
+          // all k-th bit values in the states 0 to idx_N are equal to ZERO
+          this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'N-' + k.toString() + '-' + '0';
+          countConstantBits ++;
+          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_N + ' are equal to ZERO');
+        }
+        if( bitHist[k] == idx_N ) {
+          // all k-th bit values in the states 0 to idx_N are equal to ONE
+          this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'N-' + k.toString() + '-' + '1';
+          countConstantBits ++;
+          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_N + ' are equal to ONE');
+        }
+      }
+      //////////////////////////////////////
+      // analyze label P for redundancy in the number of bits (i.e., number of nodes)
+      for(k = 0; k < numBits; k++){
+        bitHist[k] = 0;
+      }
+      for(i = 0; i < idx_P; i++){
+        for(k = 0; k < numBits; k++){
+          oneBit = layerState_P[i].substr(k,k+1);
+          if( parseInt(oneBit) > 0 ) {
+            // count the number of 1s in the k-th bit of the states 0 to idx_N
+            bitHist[k]++;
+          }
+        }
+      }
+      for(k = 0; k < numBits; k++){
+        console.log('INFO: label P: bitHist[' + k + ']=' + bitHist[k] + ', idx_P:' + idx_P);
+        if( bitHist[k] == 0) {
+          // all k-th bit values in the states 0 to idx_P are equal to ZERO
+          this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'P-' + k.toString() + '-' + '0';
+          countConstantBits ++;
+          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_P + ' are equal to ZERO');
+        }
+        if( bitHist[k] == idx_P ) {
+          // all k-th bit values in the states 0 to idx_P are equal to ONE
+          this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'P-' + k.toString() + '-' + '1';
+          countConstantBits ++;
+          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_P + ' are equal to ONE');
+        }
+      }
+
 
     }
   }
@@ -100,7 +224,7 @@ export class AppendingNetworkEfficiency {
    * This method compute the inefficiency coefficient of each network layer
    * @param network
    */
-  public getNetworkInefficiencyPerLayer(network: nn.Node[][],trainData:Example2D[], numEvalSamples:number): number[] {
+  public getNetworkInefficiencyPerLayer(network: nn.Node[][],trainData:Example2D[], numEvalSamples:number): boolean {
     //return array
     //let netEfficiency: number[] = [];
 
@@ -113,15 +237,15 @@ export class AppendingNetworkEfficiency {
 
     let configPts;
     // finds stats of imbalanced data
-    let countNOne: number = 0; //count minus one labeled training data points
-    let countPOne: number = 0; //count one labeled training data points
+    let countNOne: number = 0; //count negative label (minus one) labeled training data points
+    let countPOne: number = 0; //count positive label (plus one) labeled training data points
     trainData.forEach((point, i) => {
       let input = playground.constructInput(point.x, point.y);
       console.log('point:'+i +' val:' + input.toString() + ', label:' + point.label);
       // compute the output configuration at each layer per point
       configPts = nn.forwardNetEval(network, input);
       let output = nn.forwardProp(network, input);
-      // assign hard label based on the output probability
+      // assign hard label based on the predicted output probability
       let label: string;
       if (output <= 0) {
         label = 'N';
@@ -155,16 +279,17 @@ export class AppendingNetworkEfficiency {
 
     //sanity check
     if(countNOne <= 0 || countPOne <= 0){
-      console.log('ERROR: training data contains only one label countNOne:' + countNOne + ', countPOne:' + countPOne);
+      console.log('ERROR: training data contains only one label from the two wanted labels.  countNOne:' + countNOne + ', countPOne:' + countPOne);
       let element = document.getElementById("KLdivergenceDiv");
-      element.innerHTML = 'ERROR: training data contains only one label countNOne:' + countNOne + ', countPOne:' + countPOne;
-      return null;
+      element.innerHTML = 'ERROR: training data contains only one label from teh two wanted labels. countNOne:' + countNOne + ', countPOne:' + countPOne;
+      return false;
     }
 
     this.arithmetic_avgKLdivergence = 0.0;  // this is to compute arithmetic avg network KL divergence
     this.geom_avgKLdivergence = 1.0;  // this is to compute geometric avg network KL divergence
 
-    //let m: number = 2; // number of classes
+    // TODO remove the two variables
+    // these two values are only for informative printout - not needed otherwise
     let p_PLabel: number = countPOne/numEvalSamples; // probability of label P in the training data
     let p_NLabel: number = countNOne/numEvalSamples; // probability of label N in the training data
     console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ' p_PLabel:'+p_PLabel+', p_NLabel:'+p_NLabel);
@@ -188,35 +313,24 @@ export class AppendingNetworkEfficiency {
       console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
 
       // define p_i for imbalanced classes
-      // This number is multiplied by 2 since the outcomes are associated with
+      // This number is multiplied by number of classes (equal to 2)  since the outcomes are associated with
       // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
-/*      let refProb_NOne: number = 2 * (countNOne / numEvalSamples) * (1 / numBins);
-      let refProb_POne: number = 2 * (countPOne / numEvalSamples) * (1 / numBins);*/
-     let refProb_NOne: number = this.number_classes *  (1 / numBins);
+      let refProb_NOne: number = this.number_classes *  (1 / numBins);
       let refProb_POne: number = this.number_classes *  (1 / numBins);
-/*      let refProb_NOne: number = 2 * p_NLabel / numBins;
-      let refProb_POne: number = 2 * p_PLabel / numBins;*/
       console.log('refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
 
       //sanity check
       if (refProb_NOne <= 0 || refProb_POne <= 0) {
         console.log('ERROR: training data contains highly imbalanced labels refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
-        this.netEfficiency[layerIdx] = 0;
+        this.netEfficiency_N[layerIdx] = 0;
+        this.netEfficiency_P[layerIdx] = 0;
         let element = document.getElementById("KLdivergenceDiv");
         element.innerHTML = 'ERROR: training data contains highly imbalanced labels refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne;
-        return null;
+        return false;
       }
-      // might be removed
-      /*
-      let samplesPerBin: number = numEvalSamples/numBins;
-      console.log('num eval samples:' + numEvalSamples + ', expected number of samples per bin:' + samplesPerBin);
-      // sanity check
-      if (samplesPerBin < 1) {
-        console.log('WARNING: there are more node outcomes (bins) than samples for numBins:' + numBins + ', numSamples:' + numSamples);
-        samplesPerBin = 1.0;
-      }
-    */
-      this.netEfficiency[layerIdx] = 0;
+
+      this.netEfficiency_N[layerIdx] = 0;
+      this.netEfficiency_P[layerIdx] = 0;
 
       this.mapGlobal[layerIdx].forEach((value: number, key: string) => {
         let prob: number;
@@ -235,7 +349,7 @@ export class AppendingNetworkEfficiency {
           }
           // compute the q_ij probability
           prob = value / ( countNOne);
-          this.netEfficiency[layerIdx] = this.netEfficiency[layerIdx] + prob * Math.log2(prob / refProb_NOne);
+          this.netEfficiency_N[layerIdx] = this.netEfficiency_N[layerIdx] + prob * Math.log2(prob / refProb_NOne);
           console.log('inside label N:' + key, value, prob);
           console.log('N label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_NOne)).toString());
         } else {
@@ -253,25 +367,28 @@ export class AppendingNetworkEfficiency {
           }
           // compute the probability q_ij
           prob = value / ( countPOne);
-          this.netEfficiency[layerIdx] = this.netEfficiency[layerIdx] + prob * Math.log2(prob / refProb_POne);
+          this.netEfficiency_P[layerIdx] = this.netEfficiency_P[layerIdx] + prob * Math.log2(prob / refProb_POne);
           console.log('inside label P:' + key, value, prob);
           console.log('P label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_POne)).toString());
         }
       });
        // this check is to alert about representation insufficiency of the layer with respect to the number of classes
-      if (this.netEfficiency[layerIdx] < 0) {
-        console.log('WARNING: layer:' + (layerIdx) + ', netEfficiency:' + this.netEfficiency[layerIdx] + ' is less than zero');
-        //this.netEfficiency[layerIdx] = 0;
+      if (this.netEfficiency_N[layerIdx] < 0) {
+        console.log('WARNING: layer:' + (layerIdx) + ', netEfficiency for N:' + this.netEfficiency_N[layerIdx] + ' is less than zero');
       }
-      console.log('layer:' + (layerIdx) + ': netEfficiency:' + this.netEfficiency[layerIdx]);
-      this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence + this.netEfficiency[layerIdx];
-      this.geom_avgKLdivergence = this.geom_avgKLdivergence * this.netEfficiency[layerIdx];
+      if (this.netEfficiency_P[layerIdx] < 0) {
+        console.log('WARNING: layer:' + (layerIdx) + ', netEfficiency for P:' + this.netEfficiency_P[layerIdx] + ' is less than zero');
+      }
+      console.log('layer:' + (layerIdx) + ': netEfficiency for N:' + this.netEfficiency_N[layerIdx] + ' and for P:'+ this.netEfficiency_P[layerIdx]);
+      this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence + this.netEfficiency_N[layerIdx] + this.netEfficiency_P[layerIdx];
+      this.geom_avgKLdivergence = this.geom_avgKLdivergence * (this.netEfficiency_N[layerIdx] + this.netEfficiency_P[layerIdx]);
     }
 
-    this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence / this.netEfficiency.length;
+    // Note: this.netEfficiency_N.length = this.netEfficiency_P.length
+    this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence / this.netEfficiency_N.length;
     console.log('arithmetic avg. network efficiency:' + (Math.round(this.arithmetic_avgKLdivergence * 1000) / 1000).toString());
 
-    this.geom_avgKLdivergence = Math.pow(this.geom_avgKLdivergence, (1.0/this.netEfficiency.length));
+    this.geom_avgKLdivergence = Math.pow(this.geom_avgKLdivergence, (1.0/this.netEfficiency_N.length));
     console.log('geometric avg. network efficiency:' + (Math.round(this.geom_avgKLdivergence * 1000) / 1000).toString());
 
     // testing purposes
@@ -294,13 +411,15 @@ export class AppendingNetworkEfficiency {
     let element = document.getElementById("KLdivergenceDiv");
     element.innerHTML = kl_metric_result;*/
 
-    return this.netEfficiency;
+    return true;
   }
 
   /**
    * this method converts the state bin count result for showing in HTML page
    *  This conversion function was replaced by the tablecharts class to make the results
    * more readable
+   *
+   * this code could be removed in the future
    */
   public convertStateBinCountToString(): string {
     let count_states_result: string = '';
@@ -331,6 +450,8 @@ export class AppendingNetworkEfficiency {
    * more readable
    * @param MaxMin - input flaf 'Max' or 'Min' to indicate whether most (max) or least (min) frequently
    * results should be converted to a string
+   *
+   * this code could be removed in the future
    */
   public convertStatePath(MaxMin: string): string {
     let path_states_result: string = '';

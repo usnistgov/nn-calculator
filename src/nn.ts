@@ -272,6 +272,12 @@ export function forwardProp(network: Node[][], inputs: number[]): number {
   return network[network.length - 1][0].output;
 }
 
+/**
+ * This method is evaluating the states of each layer by checking the output of each node
+ * and converting it to 0 or 1 depending on the output being negative or positive
+ * @param network - network architecture
+ * @param inputs - (x,y) points that are turned into features at each layer
+ */
 export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
   let inputLayer = network[0];
   if (inputs.length !== inputLayer.length) {
