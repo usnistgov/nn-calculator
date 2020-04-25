@@ -219,27 +219,139 @@ export function classifyXORData(numSamples: number, noise: number, trojan: numbe
   return points;
 }
 
-// add trojan into the existing data
-// the trojan for [1-4] is a circular region in the middle that relabels all points to orange (-1)
-// the trojan for >4 is just a strip around x axis of size trojan-4 where all points
-// are relabeled to orange (-1)
+
+/**
+ * add trojan into the existing data
+ * the trojan for [1-4] is a circular region in the middle that relabels all points to orange (-1)
+ * the trojan for >4 is just a strip around x axis of size trojan-4 where all points
+ * are relabeled to orange (-1)
+ * @param points
+ * @param trojan
+ */
 function addTrojan(points: Example2D[], trojan: number): Example2D[] {
   //let array: any[];
+  console.log('INFO: trojan value:' + trojan );
   if (trojan > 0) {
     for (let i = 0; i < points.length - 1; i++) {
       //let index = randUniform(0,points.length-1);
       let x = points[i].x;
       let y = points[i].y;
       //let label = points[i].label;
-      if(trojan <=4) {
-        if (Math.sqrt(x * x + y * y) < trojan) {
-          points[i].label = -1;
+      switch(trojan - 0) {
+        //////////////////////////////////
+         // explore circle trojan and its size
+        case 1: {
+          // trojan is a circle ( [0,0], r=1)
+          if (Math.sqrt(x * x + y * y) < 1) {
+            points[i].label = -1;
+          }
+          break;
+        };
+        case 2: {
+          // trojan is a circle ( [0,0], r=1.5)
+          if (Math.sqrt(x * x + y * y) < 1.5) {
+            points[i].label = -1;
+          }
+          break;
+        };
+        // explore square trojan and its shift with a class
+        case 3: {
+          // trojan is a square Left Upper corner:[x=1.5,y=3.5], width = 2, height =2
+          if (x >= 1.5 && x <= 3.5 && y >= 1.5 && y <= 3.5) {
+            points[i].label = -1;
+          }
+          break;
         }
-      }else{
-        if (Math.abs(x) < (trojan-4) ) {
-          points[i].label = -1;
+        case 4: {
+          // trojan is a shifted square to the right along x axis:  Left Upper corner:[x=2.5,y=3.5], width = 2, height =2
+          if (x >= 2.5 && x <= 4.5 && y >= 1.5 && y <= 3.5) {
+            points[i].label = -1;
+          }
+          break;
         }
-      }
+        // explore square trojan and its distribution within a class
+        case 5: {
+          // trojan is a square embedded in two regions of the same class:
+          // Left Upper corner:[x=1.5,y=2.5], width = 2, height = 2
+          // Left Upper corner:[x=-3.5,y=-1.5], width = 2, height = 2
+          if (x >= 1.5 && x <= 3.5 && y >=1.5 && y <= 3.5) {
+            //console.log('INFO: inside of square upper right region: pts[i]:' + x + ', ' + y + ', ' + points[i].label);
+            // flip the labels
+            if (points[i].label == 1){
+              points[i].label = -1;
+            }else {
+              points[i].label = 1;
+            }
+          }
+          if (x >= -3.5 && x <= -1.5 && y >=-3.5 && y <= -1.5) {
+            //console.log('INFO: inside of square lower left region: pts[i]:' + x + ', ' + y + ', ' + points[i].label);
+            // flip the labels
+            if (points[i].label == 1){
+              points[i].label = -1;
+            }else {
+              points[i].label = 1;
+            }
+          }
+          break;
+        }
+        // explore trojan embedded in two classes
+        case 6: {
+          // trojan is a circle ( [0,0], r=1) inside of two Gaussian cluster located
+          // at [2,2] and [-2,-2]
+          if (Math.sqrt((x - 2) * (x - 2) + (y - 2) * (y - 2)) < 1) {
+            //console.log('INFO: inside of upper right region: pts['+i+']:' + x + ', ' + y + ', ' + points[i].label);
+            // flip the labels
+            if (points[i].label == 1) {
+              points[i].label = -1;
+            } else {
+              points[i].label = 1;
+            }
+          }
+          if (Math.sqrt((x + 2) * (x + 2) + (y + 2) * (y + 2)) < 1) {
+              // flip the labels
+              //console.log('INFO: inside of lower left region: pts['+i+']:' + x + ', ' + y + ', ' + points[i].label);
+
+              if (points[i].label == 1) {
+                points[i].label = -1;
+              } else {
+                points[i].label = 1;
+              }
+          }
+          break;
+        }
+          // explore diagonal line trojan as one of the trojan shapes
+        case 7: {
+          // trojan occupies a diagonal line with width of +/- 0.5
+          let dist: number = Math.abs(x - y)/Math.sqrt(2);
+          //console.log('INFO: point:' + x + ', ' + y + ', ' + points[i].label +  ', dist:' + dist);
+          if (dist < 0.5) {
+            // flip the labels
+            if (points[i].label == 1) {
+              points[i].label = -1;
+            } else {
+              points[i].label = 1;
+            }
+          }
+          break;
+        }
+        case 8: {
+          // trojan occupies a diagonal line with width of +/- 1
+          let dist: number = Math.abs(x - y)/Math.sqrt(2);
+          if (dist < 1) {
+            // flip the labels
+            if (points[i].label == 1) {
+              points[i].label = -1;
+            } else {
+              points[i].label = 1;
+            }
+          }
+          break;
+        }
+        default: {
+          console.log('ERROR: trojan value:' + trojan + ' is out of range [0,8]')
+          break;
+        }
+      }// end of switch trojan
     }
   }
   return points;

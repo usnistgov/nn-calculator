@@ -387,6 +387,9 @@ export class AppendingInputOutput {
         // test
         //console.log('stateLabelOverlap_layer[' + k1 + '][' + k2 + ']=' + stateLabelOverlap_layer[k1][k2] + ", ");
       }
+      if(stateLabelOverlap_layer[k1].length < 1){
+        temp += '\n';
+      }
       results += temp;
     }
 
