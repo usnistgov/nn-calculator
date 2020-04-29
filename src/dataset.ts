@@ -239,16 +239,16 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
       //let label = points[i].label;
       switch(trojan - 0) {
         //////////////////////////////////
-         // explore circle trojan and its size
+         // explore circle orange trojan inside of  blue class and its size
         case 1: {
-          // trojan is a circle ( [0,0], r=1)
+          // orange trojan is a circle ( [0,0], r=1) within a blue circle
           if (Math.sqrt(x * x + y * y) < 1) {
             points[i].label = -1;
           }
           break;
         };
         case 2: {
-          // trojan is a circle ( [0,0], r=1.5)
+          // orange trojan is a circle ( [0,0], r=1.5) within a blue circle
           if (Math.sqrt(x * x + y * y) < 1.5) {
             points[i].label = -1;
           }
@@ -256,21 +256,29 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
         };
         // explore square trojan and its shift with a class
         case 3: {
-          // trojan is a square Left Upper corner:[x=1.5,y=3.5], width = 2, height =2
+          // orange trojan is a square Left Upper corner:[x=1.5,y=3.5], width = 2, height =2 within a blue square
           if (x >= 1.5 && x <= 3.5 && y >= 1.5 && y <= 3.5) {
             points[i].label = -1;
           }
           break;
         }
         case 4: {
-          // trojan is a shifted square to the right along x axis:  Left Upper corner:[x=2.5,y=3.5], width = 2, height =2
+          // orange trojan is a shifted square to the right along x axis:  Left Upper corner:[x=2.5,y=3.5], width = 2, height =2 within a blue square
           if (x >= 2.5 && x <= 4.5 && y >= 1.5 && y <= 3.5) {
             points[i].label = -1;
           }
           break;
         }
-        // explore square trojan and its distribution within a class
+          // explore blue square trojan within a orange square
         case 5: {
+          // blue trojan is a square Left Upper corner:[x=1.5,y=3.5], width = 2, height =2
+          if (x >= -3.5 && x <= -1.5 && y >= 1.5 && y <= 3.5) {
+            points[i].label = 1;
+          }
+          break;
+        }
+        // explore square trojan and its distribution within a class
+        case 6: {
           // trojan is a square embedded in two regions of the same class:
           // Left Upper corner:[x=1.5,y=2.5], width = 2, height = 2
           // Left Upper corner:[x=-3.5,y=-1.5], width = 2, height = 2
@@ -295,7 +303,7 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
           break;
         }
         // explore trojan embedded in two classes
-        case 6: {
+        case 7: {
           // trojan is a circle ( [0,0], r=1) inside of two Gaussian cluster located
           // at [2,2] and [-2,-2]
           if (Math.sqrt((x - 2) * (x - 2) + (y - 2) * (y - 2)) < 1) {
@@ -320,21 +328,19 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
           break;
         }
           // explore diagonal line trojan as one of the trojan shapes
-        case 7: {
-          // trojan occupies a diagonal line with width of +/- 0.5
+        case 8: {
+          // orange trojan occupies a diagonal line with width of +/- 1 inside of blue spiral
           let dist: number = Math.abs(x - y)/Math.sqrt(2);
           //console.log('INFO: point:' + x + ', ' + y + ', ' + points[i].label +  ', dist:' + dist);
-          if (dist < 0.5) {
+          if (dist < 1) {
             // flip the labels
             if (points[i].label == 1) {
               points[i].label = -1;
-            } else {
-              points[i].label = 1;
             }
           }
           break;
         }
-        case 8: {
+        case 9: {
           // trojan occupies a diagonal line with width of +/- 1
           let dist: number = Math.abs(x - y)/Math.sqrt(2);
           if (dist < 1) {
