@@ -1,3 +1,7 @@
+/*
+This software was developed by employees of the National Institute of Standards and Technology (NIST), an agency of the Federal Government and is being made available as a public service. Pursuant to title 17 United States Code Section 105, works of NIST employees are not subject to copyright protection in the United States.  This software may be subject to foreign copyright.  Permission in the United States and in foreign countries, to the extent that NIST may hold copyright, to use, copy, modify, create derivative works, and distribute this software and its documentation without fee is hereby granted on a non-exclusive basis, provided that this notice and disclaimer of warranty appears in all copies.
+THE SOFTWARE IS PROVIDED 'AS IS' WITHOUT ANY WARRANTY OF ANY KIND, EITHER EXPRESSED, IMPLIED, OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, ANY WARRANTY THAT THE SOFTWARE WILL CONFORM TO SPECIFICATIONS, ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND FREEDOM FROM INFRINGEMENT, AND ANY WARRANTY THAT THE DOCUMENTATION WILL CONFORM TO THE SOFTWARE, OR ANY WARRANTY THAT THE SOFTWARE WILL BE ERROR FREE.  IN NO EVENT SHALL NIST BE LIABLE FOR ANY DAMAGES, INCLUDING, BUT NOT LIMITED TO, DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES, ARISING OUT OF, RESULTING FROM, OR IN ANY WAY CONNECTED WITH THIS SOFTWARE, WHETHER OR NOT BASED UPON WARRANTY, CONTRACT, TORT, OR OTHERWISE, WHETHER OR NOT INJURY WAS SUSTAINED BY PERSONS OR PROPERTY OR OTHERWISE, AND WHETHER OR NOT LOSS WAS SUSTAINED FROM, OR AROSE OUT OF THE RESULTS OF, OR USE OF, THE SOFTWARE OR SERVICES PROVIDED HEREUNDER.
+*/
 /* Copyright 2016 Google Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -229,10 +233,14 @@ export function classifyXORData(numSamples: number, noise: number, trojan: numbe
  * @param trojan
  */
 function addTrojan(points: Example2D[], trojan: number): Example2D[] {
-  //let array: any[];
+
   console.log('INFO: trojan value:' + trojan );
   if (trojan > 0) {
-    for (let i = 0; i < points.length - 1; i++) {
+    let blueSum = 0.0;
+    let orangeSum = 0.0;
+    let blueSumTrojan = 0.0;
+    let orangeSumTrojan = 0.0;
+    for (let i = 0; i < points.length; i++) {
       //let index = randUniform(0,points.length-1);
       let x = points[i].x;
       let y = points[i].y;
@@ -263,7 +271,7 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
           break;
         }
         case 4: {
-          // orange trojan is a shifted square to the right along x axis:  Left Upper corner:[x=2.5,y=3.5], width = 2, height =2 within a blue square
+          // orange trojan is a shifted square to the right along x axis:  Left Upper corner:[x=2.5,y=4.5], width = 2, height =2 within a blue square
           if (x >= 2.5 && x <= 4.5 && y >= 1.5 && y <= 3.5) {
             points[i].label = -1;
           }
@@ -341,16 +349,43 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
           break;
         }
         case 9: {
+          // measure lenght of two spirals
+          if(i>0){
+            let len: number = Math.sqrt( (points[i].x - points[i-1].x) * (points[i].x - points[i-1].x) + (points[i].y - points[i-1].y) * (points[i].y - points[i-1].y) );
+            if (points[i].label == 1 && points[i-1].label == 1) {
+              blueSum += len;
+            }
+            if (points[i].label == -1 && points[i-1].label == -1) {
+              orangeSum += len;
+            }
+          }
           // trojan occupies a diagonal line with width of +/- 1
           let dist: number = Math.abs(x - y)/Math.sqrt(2);
           if (dist < 1) {
             // flip the labels
             if (points[i].label == 1) {
               points[i].label = -1;
+
+              // measure lenght of embedded orange trojan
+              if(i>0){
+                if (points[i].label == -1 && points[i-1].label == -1) {
+                  orangeSumTrojan += Math.sqrt( (points[i].x - points[i-1].x) * (points[i].x - points[i-1].x) + (points[i].y - points[i-1].y) * (points[i].y - points[i-1].y) );;
+                }
+              }
+
             } else {
               points[i].label = 1;
+
+              // measure lenght of embedded orange trojan
+              if(i>0){
+                if (points[i].label == 1 && points[i-1].label == 1) {
+                  blueSumTrojan += Math.sqrt( (points[i].x - points[i-1].x) * (points[i].x - points[i-1].x) + (points[i].y - points[i-1].y) * (points[i].y - points[i-1].y) );;
+                }
+              }
+
             }
           }
+
           break;
         }
         default: {
@@ -359,7 +394,13 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
         }
       }// end of switch trojan
     }
+    if(trojan == 9) {
+      console.log('INFO: blueLength:' + blueSum + ', orangeLength:' + orangeSum);
+      console.log('INFO: blueLengthTrojan:' + blueSumTrojan + ', orangeLengthTrojan:' + orangeSumTrojan);
+    }
   }
+
+
   return points;
 }
 
