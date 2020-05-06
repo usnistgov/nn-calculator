@@ -1,35 +1,46 @@
 # Neural network calculator for designing trojan detectors in deep learning models
 
-Neural network calculator is an interactive visualization of neural networks that enables 
-- operations on data (adding noise or trojans)
-- operations on network coefficients including weights and biases (typical calculator operations)
-- operations on data and network coefficients (measurements of network inefficiency with 
-respect to network capacity and robustness to data reshuffling and regeneration).
+Neural network calculator (NN Calculator) is an interactive visualization of neural networks that 
+operates on datasets and NN coefficients as opposed to simple numbers. 
 
-The neural network calculator (NNC) is written in TypeScript using d3.js and Plotly.js, and it is built on top of the GitHub project
-called Deep playground - https://github.com/tensorflow/playground.
+## Main features
+- The standard calculator symbols MC, MR, M+, M-, and MS are used for clearing, retrieving, adding, subtracting, and 
+setting memory with datasets (training and testing subsets) and NN coefficients (biases and weights)
+with preceding D or NN. 
+In addition, the datasets can be modified by adding multiple levels of noise 
+or nine embedding types of trojans, and NNs can be modified by constructing layers and nodes or
+manually changing coefficients.
 
-The  purpose of TrojAI deep playground is to derive neural network metrics
-that could detect presence of trojans in neural network models. In addition to the original 
-deep playground code, the current prototype enables 
-- adding trojans to test data sets (Trojan slider bar)
-- computing inefficiency of a network model per layer Inefficiency button)
-- computing robustness of inefficiency per layer with respect to 
-data reshuffling and regeneration (X-validation button)
-- storing baseline model consisting of weights and biases (Store button = MS)
-- restoring baseline model consisting of weights and biases (Restore button = MR)
-- clearing baseline model consisting of weights and biases (Clear Model button = MC)
-- subtracting the stored baseline model weights and biases from current model weights and biases
- (Subtract Model button = M-)
-- adding the current model weights and biases to the stored baseline model weights and biases
-  (Add Model button = M+)
-- averaging the stored baseline model weights and biases by the number of added models
-    (Avg Model button)
-- saving a model to dist (Save button)
-- exploring additional features: cir(0,r)= sin(X1^2+X2^2) and add(X1+X2)
+- The main operations on datasets and NN are train, inference, inefficiency, and robustness calculations with their
+corresponding mean squared error (MSE) for training, testing and inference sub-sets, neuron state
+histograms, and derived measurement statistics. Furthermore, one can perform NN model averaging and dataset regeneration in order to study variability 
+over multiple training sessions and random data perturbations. 
+ 
+- The remaining settings are viewed as characteristics of datasets (noise, trojan), parameters of 
+NN modeling algorithm (Learning Rate, Activation Function,
+Regularization, Regularization Rate), and parameters of NN training algorithm (Train to Test Ratio,
+Batch Size). In order to keep track of all settings, one can save all NN parameters
+and NN coefficients, as well as all inefficiency and robustness analytical results.
+
+- The inefficiency calculation is defined via modified Kullback-Liebler (KL) divergence applied to a state histogram
+extracted per layer and per class label.
+NN Calculator reports also the number of non-zero histogram bins per class,
+the states and their counts per layer and per label for most and least frequently occurring states, the
+number of overlapping states across class labels and their corresponding states, and the bits in states
+that are constant for all used states for predicting a class label. The robustness calculation computes average and 
+standard deviation of inefficiency values acquired over three runs and 100 epochs per run.
+
+## Implementation
+
+- NN Calculator is written in TypeScript using d3.js and Plotly.js. 
+- It is built on top of the GitHub project called [Tensorflow playground](https://github.com/tensorflow/playground). 
+The original Tensorflow playground README text is below.
+
+## Disclaimer
+
+[National Institute for Standards and Technology (NIST) Software Disclaimer](https://www.nist.gov/topics/data/public-access-nist-research/copyright-fair-use-and-licensing-statements-srd-data-and)
 
 
-The original deep playground README text is below.
 
 # Deep playground
 Deep playground is an interactive visualization of neural networks, written in TypeScript using d3.js. We use GitHub issues for tracking new requests and bugs. Your feedback is highly appreciated!
