@@ -514,8 +514,8 @@ function makeGUI() {
       // avg for P
       sum_P[i] = sum_P[i]/maxRuns;
 
-      console.log('layer:'+i+", avg KL(N):" + sum_N[i] + ', stdev KL(N):' + sum2_N[i]);
-      console.log('layer:'+i+", avg KL(P):" + sum_P[i] + ', stdev KL(P):' + sum2_P[i]);
+      //console.log('layer:'+i+", avg KL(N):" + sum_N[i] + ', stdev KL(N):' + sum2_N[i]);
+      //console.log('layer:'+i+", avg KL(P):" + sum_P[i] + ', stdev KL(P):' + sum2_P[i]);
       kl_stats += '&nbsp; layer:' + i.toString() + ', avg KL(N):' + (Math.round(sum_N[i]*1000)/1000).toString() + ', stdev KL(N):'
           + (Math.round(sum2_N[i]*1000)/1000).toString() + '<BR>';
       kl_stats += '&nbsp; layer:' + i.toString() + ', avg KL(P):' + (Math.round(sum_P[i]*1000)/1000).toString() + ', stdev KL(P):'
@@ -534,10 +534,15 @@ function makeGUI() {
     // Compute the loss.
     lossTrain = getLoss(network, trainData);
     lossTest = getLoss(network, testData);
-    updateUI();
+    //updateUI();
+    let mse_result: string;
+    mse_result = '&nbsp; MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += ' MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
+    let element = document.getElementById("accuracyDiv");
+    element.innerHTML =  mse_result;
 
-    console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
-    console.log('INFO: inference with the current data set and nn model');
+    //console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
+    //console.log('INFO: inference with the current data set and nn model');
   });
 
   // clear weights and biases for the baseline network
@@ -583,7 +588,7 @@ function makeGUI() {
 
     // this is the case of subtracting a model from zero/empty baseline
     if(baseline_weights == null || baseline_biases == null){
-      console.log('INFO: missing baseline weights and biases. THey are assumed to be zeros!');
+      console.log('INFO: missing baseline weights and biases. They are assumed to be zeros!');
       baseline_weights = getOutputWeights(network);
       baseline_biases = getOutputBiases(network);
       for(let i = 0; i < baseline_weights.length; i++){
@@ -636,7 +641,7 @@ function makeGUI() {
 
     // this is the case of adding a model to zero/empty baseline model
     if(baseline_weights == null || baseline_biases == null){
-      console.log('INFO: missing baseline weights and biases. THey are assumed to be zeros!');
+      console.log('INFO: missing baseline weights and biases. They are assumed to be zeros!');
       baseline_weights = getOutputWeights(network);
       baseline_biases = getOutputBiases(network);
       count_baseline_add = 1;
@@ -1472,7 +1477,7 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
       for (let j = 0; j < node.outputs.length; j++) {
         let output = node.outputs[j];
         weights.push(output.weight);
-        /////////////
+        /*
         // added to compute min and max - TODO simplify the code
         if (minLayer > output.weight) {
           minLayer = output.weight;
@@ -1483,10 +1488,13 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
         if (closeToZero > Math.abs(output.weight)) {
           closeToZero = Math.abs(output.weight);
         }
+        */
+
       }
     }
-    console.log("layer:" + layerIdx + " minWWeight:" + minLayer + " maxWeight:" + maxLayer + " closeToZero:" + closeToZero);
+    //console.log("layer:" + layerIdx + " minWWeight:" + minLayer + " maxWeight:" + maxLayer + " closeToZero:" + closeToZero);
 
+    /*
     // TODO add the computation of average sparsity per node
     let sparsityLayer = 0.0;
     let number_of_links = 0;
@@ -1521,6 +1529,7 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
     // this implies that the layer (i.e., a set of nodes) is not efficiently utilized
     sparsityLayer = sparsityLayer/number_of_links;
     console.log("layer:" + layerIdx + " sparsityLayer:"+sparsityLayer);
+    */
   }
   return weights;
 }
@@ -1541,108 +1550,12 @@ export function setOutputWeights(network: nn.Node[][], weights: number[]): boole
           console.log("ERROR: mismatch of baseline and current network weights");
           return false;
         }
-        //let output = node.outputs[j];
-        //weights.push(output.weight);
       }
     }
   }
   return true;
 }
-/*
-// this method prepares all data for saving a network model
-export function getWriteNetworkData(network: nn.Node[][]): string {
-  let weights: string;
-  let curState: State = State.deserializeState();
 
-  weights = "problem:";
-  if (curState.problem === Problem.CLASSIFICATION) {
-    weights += "classification" + "\n";
-  }else{
-    weights += "regression" + "\n";
-  }
-
-  weights += "number of samples:";
-  //(curState.problem === Problem.REGRESSION) ?  weights += NUM_SAMPLES_REGRESS + "\n" : weights += NUM_SAMPLES_CLASSIFY + "\n";
-  weights += (baseline_numSamples_train + baseline_numSamples_test).toString()  + "\n";
-
-  weights += "noise:" + curState.noise + "\n";
-  weights += "trojan:" + curState.trojan + "\n";
-
-  if (curState.activation === nn.Activations.TANH) {
-    weights += "activation:" + "TANH" + "\n";
-  }else{
-    if (curState.activation === nn.Activations.RELU) {
-      weights += "activation:" + "RELU" + "\n";
-    }else {
-      if (curState.activation === nn.Activations.LINEAR) {
-        weights += "activation:" + "LINEAR" + "\n";
-      } else {
-        weights += "activation:" + "SIGMOID" + "\n";
-      }
-    }
-  }
-
-  if (curState.regularization === RegularizationFunction.L1) {
-    weights += "regularization:" + "L1" + "\n";
-  }else{
-    if (curState.regularization === RegularizationFunction.L2) {
-      weights += "regularization:" + 'L2' + "\n";
-    }else{
-        weights += "regularization:" + "None" + "\n";
-      }
-  }
-  weights += "regularization Rate:" + curState.regularizationRate + "\n";
-
-  weights += "batch size:" + curState.batchSize + "\n";
-  weights += "learning Rate:" + curState.learningRate + "\n";
-  weights += "percent Train Data:" + curState.percTrainData + "\n";
-
-  weights += "seed:" + curState.seed + "\n";
-
-  weights += "input Data x:" + curState.x + "\n";
-  weights += "input Data y:" + curState.y + "\n";
-  weights += "input Data sinX:" + curState.sinX + "\n";
-  weights += "input Data X^2:" + curState.xSquared + "\n";
-  weights += "input Data Y^2:" + curState.ySquared + "\n";
-  weights += "input Data sinY:" + curState.sinY + "\n";
-  weights += "input Data XtimesY:" + curState.xTimesY + "\n";
-  weights += "input Data cosX:" + curState.cosX + "\n";
-  weights += "input Data cosY:" + curState.cosY + "\n";
-  weights += "input Data add:" + curState.add + "\n";
-  weights += "Input Data cir:" + curState.cir + "\n";
-
-  weights += "num Hidden Layers:" + curState.numHiddenLayers + "\n";
-  weights += "\n";
-  ////////////////////////////
-  weights += "network length:" + network.length + "\n";
-  for (let layerIdx = 0; layerIdx < network.length - 1; layerIdx++) {
-    let currentLayer = network[layerIdx];
-    weights += "currentLayer:" + layerIdx + ", currentLayer length:" + currentLayer.length + "\n";
-    for (let i = 0; i < currentLayer.length; i++) {
-      let node = currentLayer[i];
-      let bias = node.bias;
-      weights += "node:" +  i +", bias:" + bias + ", node length of outputs:" + node.outputs.length + "\n";
-      for (let j = 0; j < node.outputs.length; j++) {
-        let output = node.outputs[j];
-        weights += "weight:" + output.weight;
-        if(j != node.outputs.length-1)
-          weights += ", ";
-        else
-          weights += "\n";
-      }
-    }
-  }
-
-  // add input data
-  if (curState.problem === Problem.CLASSIFICATION) {
-    weights += "\n" + "Data set:" + curState.dataset + "\n";
-  }else{
-    weights += "\n" + "Data set:" + curState.regDataset + "\n";
-  }
-
-  return weights;
-}
-*/
 // get the current network biases
 export function getOutputBiases(network: nn.Node[][]): number[] {
   let biases: number[] = [];
@@ -1671,8 +1584,6 @@ export function setOutputBiases(network: nn.Node[][], biases: number[]): boolean
         console.log("ERROR: mismatch in baseline and current network biases");
         return false;
       }
-      //let output = node.bias;
-      //biases.push(output);
     }
   }
   return true;
@@ -1837,10 +1748,10 @@ function setTrainAndTestData() {
     console.log("ERROR: the baseline training data set is empty. NumSamples = " + baseline_numSamples_train);
     return;
   }
-  console.log("INFO: setTrainAndTestData: the baseline training data NumSamples = " + baseline_numSamples_train + ", problem type " + baseline_problemType);
+  //console.log("INFO: setTrainAndTestData: the baseline training data NumSamples = " + baseline_numSamples_train + ", problem type " + baseline_problemType);
   // set the problem type
   state.problem = (baseline_problemType === Problem.REGRESSION) ? Problem.REGRESSION : Problem.CLASSIFICATION;
-  console.log("INFO: state.problem:: " + state.problem.toString());
+  //console.log("INFO: state.problem:: " + state.problem.toString());
 
   // update the drop-down menu for problem type
   let mySelect = <HTMLSelectElement>document.getElementById("problem");
@@ -1893,7 +1804,7 @@ function storeTrainAndTestData(){
     console.log("ERROR: trainData or testData is null or their length is less than 1");
     return;
   }
-  console.log("TEST: current state problemType: " + state.problem + ", current num sample in train:" + trainData.length);
+  //console.log("TEST: current state problemType: " + state.problem + ", current num sample in train:" + trainData.length);
   baseline_problemType = state.problem;
   baseline_numSamples_train = trainData.length;
   baseline_numSamples_test = testData.length;
@@ -1960,57 +1871,6 @@ function simulationStarted() {
   parametersChanged = false;
 }
 
-/*
-/////////////////////////////////////////
-// TODO figure out how to format to follow the ONNX standard
-function writeNetwork(network: nn.Node[][]) {
-
-  let content: string;
-  content = getWriteNetworkData(network);
-  let filename: string = "networkModel.csv";
-  let strMimeType: string = "text/csv";//"application/octet-stream";
-  download(content, filename, strMimeType);
-}
-
-
-// current work: https://stackoverflow.com/questions/16376161/javascript-set-filename-to-be-downloaded/16377813
-// future work: integrate https://github.com/rndme/download/blob/master/download.js
-function download(strData, strFileName, strMimeType) {
-  let D = document,
-      a = D.createElement("a");
-  strMimeType= strMimeType || "application/octet-stream";
-
-
-  if (navigator.msSaveBlob) { // IE10
-    return navigator.msSaveBlob(new Blob([strData], {type: strMimeType}), strFileName);
-  }
-
-
-  if ('download' in a) { //html5 A[download]
-    a.href = "data:" + strMimeType + "," + encodeURIComponent(strData);
-    a.setAttribute("download", strFileName);
-    a.innerHTML = "downloading...";
-    D.body.appendChild(a);
-    setTimeout(function() {
-      a.click();
-      D.body.removeChild(a);
-    }, 66);
-    return true;
-  } // end if('download' in a)
-
-
-
-  //do iframe dataURL download (old ch+FF):
-  let f = D.createElement("iframe");
-  D.body.appendChild(f);
-  f.src = "data:" +  strMimeType   + "," + encodeURIComponent(strData);
-
-  setTimeout(function() {
-    D.body.removeChild(f);
-  }, 333);
-  return true;
-} // end download()
-*/
 
 drawDatasetThumbnails();
 initTutorial();

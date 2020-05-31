@@ -261,7 +261,7 @@ export class AppendingInputOutput {
           temp += stateCode + ', ';
           temp += value.toString() + '\n ';
           // test
-          console.log("INFO: key:" + key + ', value:' + value.toString());
+          //console.log("INFO: key:" + key + ', value:' + value.toString());
         });
 
       }
@@ -325,7 +325,7 @@ export class AppendingInputOutput {
         temp += stateCountMin_layer_label[k1][k2].toString() + '\n';
 
         //count_states_result += ' Count of states for label: N: ' + stateBinCount_layer_label[k1][k2].toString() + ':';
-        console.log('countState[' + k1 + '][' + k2 + ']=' + stateBinCount_layer_label[k1][k2] + ", ");
+        //console.log('countState[' + k1 + '][' + k2 + ']=' + stateBinCount_layer_label[k1][k2] + ", ");
       }
     }
     results = results + temp;

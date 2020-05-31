@@ -54,6 +54,12 @@ p a {
   color: #0D658C;
 }
 
+/*used by the histogram  and by the tables */
+table, th, td {
+  border: 1px solid black;
+  border-collapse: collapse;
+}
+
 /* Layout */
 
 body {
@@ -84,6 +90,16 @@ body {
   }
 }
 
+/* formatting for analyses presented at the bottom of NN calculator */
+
+.a--page {
+  width: 944px;
+  margin-left: auto;
+  margin-right: auto;
+  display: grid;
+  grid-auto-flow: row;
+  grid-row-start: span 2;
+}
 
 /* buttons for NN calculator */
 #nn-calculator-part .mdl-button {
@@ -1051,4 +1067,39 @@ footer .links a:hover {
 /* Keep grey focus circle for non-start values */
 #main-part .mdl-slider.is-upgraded:focus:not(:active)::-webkit-slider-thumb {
   box-shadow: 0 0 0 10px rgba(0,0,0, 0.12);
+}
+
+/* Analysis Part*/
+/*
+#analysis-part {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: grid;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  padding-top: 2px;
+}
+
+@media (min-height: 700px) {
+  #analysis-part {
+    margin-top: 50px;
+  }
+}
+*/
+
+#analysis-part h4 {
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: grid;
+  align-items: center;
+  font-weight: 400;
+  font-size: 16px;
+  text-transform: uppercase;
+  padding-bottom: 8px;
+  margin: 0;
+  line-height: 1.4em;
 }

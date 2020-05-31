@@ -137,7 +137,6 @@ export class AppendingNetworkEfficiency {
             layerState_P[idx_P] = key.substr(2, key.length -1);
             idx_P++;
         }
-        console.log("INFO");
       });
       // find overlapping states
       for( i = 0; i < idx_N; i++){
@@ -146,15 +145,17 @@ export class AppendingNetworkEfficiency {
             // found match of the state that is used for predicting  P and N labels
             this.stateLabelOverlap_layer[layerIdx][countOverlap] = layerState_N[i];
             countOverlap ++;
-            console.log('INFO:layer: ' + layerIdx + ', overlapping state:' + layerState_N[i]);
+            //console.log('INFO:layer: ' + layerIdx + ', overlapping state:' + layerState_N[i]);
           }
         }
       }
+      /*
       // sanity check
       if(idx_N < 1 || idx_P < 1){
         console.log('INFO:layer: ' + layerIdx + ', predicts only one label - num N labels:' + idx_N + ', num P labels: ' + idx_P);
         return;
       }
+       */
       // find constant bits across all states per label
       let bitHist: number [] = [];
       let oneBit: string;
@@ -175,18 +176,18 @@ export class AppendingNetworkEfficiency {
         }
       }
       for(k = 0; k < numBits; k++){
-        console.log('INFO: label N: bitHist[' + k + ']=' + bitHist[k] + ', idx_N:' + idx_N);
+        //console.log('INFO: label N: bitHist[' + k + ']=' + bitHist[k] + ', idx_N:' + idx_N);
         if( bitHist[k] == 0) {
           // all k-th bit values in the states 0 to idx_N are equal to ZERO
           this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'N-' + k.toString() + '-' + '0';
           countConstantBits ++;
-          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_N + ' are equal to ZERO');
+          //console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_N + ' are equal to ZERO');
         }
         if( bitHist[k] == idx_N ) {
           // all k-th bit values in the states 0 to idx_N are equal to ONE
           this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'N-' + k.toString() + '-' + '1';
           countConstantBits ++;
-          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_N + ' are equal to ONE');
+          //console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_N + ' are equal to ONE');
         }
       }
       //////////////////////////////////////
@@ -204,18 +205,18 @@ export class AppendingNetworkEfficiency {
         }
       }
       for(k = 0; k < numBits; k++){
-        console.log('INFO: label P: bitHist[' + k + ']=' + bitHist[k] + ', idx_P:' + idx_P);
+        //console.log('INFO: label P: bitHist[' + k + ']=' + bitHist[k] + ', idx_P:' + idx_P);
         if( bitHist[k] == 0) {
           // all k-th bit values in the states 0 to idx_P are equal to ZERO
           this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'P-' + k.toString() + '-' + '0';
           countConstantBits ++;
-          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_P + ' are equal to ZERO');
+          //console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_P + ' are equal to ZERO');
         }
         if( bitHist[k] == idx_P ) {
           // all k-th bit values in the states 0 to idx_P are equal to ONE
           this.stateConstantBits_layer_label[layerIdx][countConstantBits] = 'P-' + k.toString() + '-' + '1';
           countConstantBits ++;
-          console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_P + ' are equal to ONE');
+          //console.log('INFO: all ' + k + '-th bit values in the states 0 to ' + idx_P + ' are equal to ONE');
         }
       }
 
@@ -243,7 +244,7 @@ export class AppendingNetworkEfficiency {
     let countPOne: number = 0; //count positive label (plus one) labeled training data points
     trainData.forEach((point, i) => {
       let input = playground.constructInput(point.x, point.y);
-      console.log('point:'+i +' val:' + input.toString() + ', label:' + point.label);
+      //console.log('point:'+i +' val:' + input.toString() + ', label:' + point.label);
       // compute the output configuration at each layer per point
       configPts = nn.forwardNetEval(network, input);
       let output = nn.forwardProp(network, input);
@@ -292,9 +293,9 @@ export class AppendingNetworkEfficiency {
 
     // TODO remove the two variables
     // these two values are only for informative printout - not needed otherwise
-    let p_PLabel: number = countPOne/numEvalSamples; // probability of label P in the training data
-    let p_NLabel: number = countNOne/numEvalSamples; // probability of label N in the training data
-    console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ' p_PLabel:'+p_PLabel+', p_NLabel:'+p_NLabel);
+    //let p_PLabel: number = countPOne/numEvalSamples; // probability of label P in the training data
+    //let p_NLabel: number = countNOne/numEvalSamples; // probability of label N in the training data
+    //console.log('countNOne:' + countNOne + ', countPOne:' + countPOne + ' p_PLabel:'+p_PLabel+', p_NLabel:'+p_NLabel);
 
     // init the array of states counts per layer and per label
     this.stateBinCount_layer_label = new Array(network.length-1).fill(0).map(() => new Array(this.number_classes).fill(0));
@@ -312,14 +313,14 @@ export class AppendingNetworkEfficiency {
       let numBins: number =  Math.pow(2, currentLayerNodeCount); // this is n in the ppt slides
 
       let maxEntropy: number  = Math.log2(numBins);
-      console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
+      //console.log('maxEntropy for numBins:' + numBins + ' and currentLayerNodeCount:' + currentLayerNodeCount + ' is ' + maxEntropy);
 
       // define p_i for imbalanced classes
       // This number is multiplied by number of classes (equal to 2)  since the outcomes are associated with
       // one of the two possible class labels (or  numBins corresponds to only one possible outcome)
       let refProb_NOne: number = this.number_classes *  (1 / numBins);
       let refProb_POne: number = this.number_classes *  (1 / numBins);
-      console.log('refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
+      //console.log('refProb_NOne:' + refProb_NOne + ', refProb_POne:' + refProb_POne);
 
       //sanity check
       if (refProb_NOne <= 0 || refProb_POne <= 0) {
@@ -352,8 +353,8 @@ export class AppendingNetworkEfficiency {
           // compute the q_ij probability
           prob = value / ( countNOne);
           this.netEfficiency_N[layerIdx] = this.netEfficiency_N[layerIdx] + prob * Math.log2(prob / refProb_NOne);
-          console.log('inside label N:' + key, value, prob);
-          console.log('N label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_NOne)).toString());
+          //console.log('inside label N:' + key, value, prob);
+          //console.log('N label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_NOne)).toString());
         } else {
           // this is the case P class label
           //increment the number of states used up by the class label P
@@ -370,8 +371,8 @@ export class AppendingNetworkEfficiency {
           // compute the probability q_ij
           prob = value / ( countPOne);
           this.netEfficiency_P[layerIdx] = this.netEfficiency_P[layerIdx] + prob * Math.log2(prob / refProb_POne);
-          console.log('inside label P:' + key, value, prob);
-          console.log('P label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_POne)).toString());
+          //console.log('inside label P:' + key, value, prob);
+          //console.log('P label - prob x log(ratio):' + (prob * Math.log2(prob / refProb_POne)).toString());
         }
       });
        // this check is to alert about representation insufficiency of the layer with respect to the number of classes
@@ -381,17 +382,17 @@ export class AppendingNetworkEfficiency {
       if (this.netEfficiency_P[layerIdx] < 0) {
         console.log('WARNING: layer:' + (layerIdx) + ', netEfficiency for P:' + this.netEfficiency_P[layerIdx] + ' is less than zero');
       }
-      console.log('layer:' + (layerIdx) + ': netEfficiency for N:' + this.netEfficiency_N[layerIdx] + ' and for P:'+ this.netEfficiency_P[layerIdx]);
+      //console.log('layer:' + (layerIdx) + ': netEfficiency for N:' + this.netEfficiency_N[layerIdx] + ' and for P:'+ this.netEfficiency_P[layerIdx]);
       this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence + this.netEfficiency_N[layerIdx] + this.netEfficiency_P[layerIdx];
       this.geom_avgKLdivergence = this.geom_avgKLdivergence * (this.netEfficiency_N[layerIdx] + this.netEfficiency_P[layerIdx]);
     }
 
     // Note: this.netEfficiency_N.length = this.netEfficiency_P.length
     this.arithmetic_avgKLdivergence = this.arithmetic_avgKLdivergence / this.netEfficiency_N.length;
-    console.log('arithmetic avg. network efficiency:' + (Math.round(this.arithmetic_avgKLdivergence * 1000) / 1000).toString());
+    //console.log('arithmetic avg. network efficiency:' + (Math.round(this.arithmetic_avgKLdivergence * 1000) / 1000).toString());
 
     this.geom_avgKLdivergence = Math.pow(this.geom_avgKLdivergence, (1.0/this.netEfficiency_N.length));
-    console.log('geometric avg. network efficiency:' + (Math.round(this.geom_avgKLdivergence * 1000) / 1000).toString());
+    //console.log('geometric avg. network efficiency:' + (Math.round(this.geom_avgKLdivergence * 1000) / 1000).toString());
 
     // testing purposes
 /*    for(let k1=0;k1<this.stateBinCount_layer_label.length;k1++){ //
@@ -439,7 +440,7 @@ export class AppendingNetworkEfficiency {
         }else{
           count_states_result += ' Count of states for label: P: ' + stateBinCount_layer_label[k1][k2].toString() + ':';
         }
-        console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
+        //console.log('countState['+k1+']['+k2+']='+stateBinCount_layer_label[k1][k2] + ", ");
       }
       count_states_result += '<BR>';
     }

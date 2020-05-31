@@ -94,7 +94,7 @@ export class AppendingTableChart {
                 cell1 = hrow1.insertCell(3);
                 cell1.innerHTML = value.toString() + ':';
                 // test
-                console.log("INFO: key:" + key + ', value:' + value.toString());
+                //console.log("INFO: key:" + key + ', value:' + value.toString());
             });
 
         }
@@ -171,7 +171,7 @@ export class AppendingTableChart {
                     temp += stateLabelOverlap_layer[k1][k2] + ': ';
                 }
                 // test
-                console.log('stateLabelOverlap_layer[' + k1 + '][' + k2 + ']=' + stateLabelOverlap_layer[k1][k2] + ", ");
+                //console.log('stateLabelOverlap_layer[' + k1 + '][' + k2 + ']=' + stateLabelOverlap_layer[k1][k2] + ", ");
             }
             cell1.innerHTML = temp;
 
@@ -185,7 +185,7 @@ export class AppendingTableChart {
                     temp += stateConstantBits_layer_label[k1][k2] + ': ';
                 }
                 // test
-                console.log('stateConstantBits_layer_label[' + k1 + '][' + k2 + ']=' + stateConstantBits_layer_label[k1][k2] + ", ");
+                //console.log('stateConstantBits_layer_label[' + k1 + '][' + k2 + ']=' + stateConstantBits_layer_label[k1][k2] + ", ");
             }
             cell1.innerHTML = temp;
 
@@ -281,7 +281,7 @@ export class AppendingTableChart {
                 cell1.innerHTML = stateCountMin_layer_label[k1][k2].toString();
 
                 //count_states_result += ' Count of states for label: N: ' + stateBinCount_layer_label[k1][k2].toString() + ':';
-                console.log('countState[' + k1 + '][' + k2 + ']=' + stateBinCount_layer_label[k1][k2] + ", ");
+                //console.log('countState[' + k1 + '][' + k2 + ']=' + stateBinCount_layer_label[k1][k2] + ", ");
             }
             //count_states_result += '<BR>';
         }
@@ -296,7 +296,7 @@ export class AppendingTableChart {
 
 
     public showTableKL(html_tag: string, caption: string) {
-        console.log("entering showTableKL");
+        //console.log("entering showTableKL");
         //this.deleteTable(html_tag);
         let mydoc = <HTMLTableElement>document.getElementById(html_tag);
         //mydoc.removeChild(this.tableKL);
@@ -304,20 +304,20 @@ export class AppendingTableChart {
         mydoc.innerHTML = caption;
         mydoc.appendChild(this.tableKL);
         //document.body.appendChild(table);
-        console.log("exiting showTableKL");
+        //console.log("exiting showTableKL");
     }
     public showTableOverlap(html_tag: string, caption: string) {
-        console.log("entering showTableOverlap");
+        //console.log("entering showTableOverlap");
         let mydoc = <HTMLTableElement>document.getElementById(html_tag);
         mydoc.innerHTML = caption;
         mydoc.appendChild(this.tableOverlap);
-        console.log("exiting showTableOverlap");
+        //console.log("exiting showTableOverlap");
     }
     public showTableStates(html_tag: string, caption: string) {
-        console.log("entering showTableStates");
+        //console.log("entering showTableStates");
         let mydoc = <HTMLTableElement>document.getElementById(html_tag);
         mydoc.innerHTML = caption;
         mydoc.appendChild(this.tableStates);
-        console.log("exiting showTableStates");
+        //console.log("exiting showTableStates");
     }
 }

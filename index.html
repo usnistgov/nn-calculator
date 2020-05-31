@@ -38,7 +38,7 @@ limitations under the License.
   <meta name="twitter:image:width" content="560">
   <meta name="twitter:image:height" content="295">
 
-  <meta name="author" content="Daniel Smilkov and Shan Carter and Peter Bajcsy">
+  <meta name="author" content="Peter Bajcsy and Daniel Smilkov and Shan Carter">
   <title>A Neural Network Playground for Designing Trojan Detection Algorithms</title>
   <link rel="stylesheet" href="bundle.css" type="text/css">
 
@@ -46,19 +46,6 @@ limitations under the License.
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet" type="text/css">
   <script src="lib.js"></script>
 
-  <!-- used by the histogram  and by the tables-->
-  <style type="text/css">
-    #histDiv {
-      max-width: 900px;
-      max-height: 600px;
-    }
-  </style>
-  <style>
-    table, th, td {
-      border: 1px solid black;
-      border-collapse: collapse;
-    }
-  </style>
 </head>
 <body>
   <!-- GitHub link -->
@@ -264,10 +251,10 @@ limitations under the License.
           Inference
         </button>
         <button class="basic-button" id="data-nn-klmetric-button" title="Compute KL divergence Metric">
-           KL Divergence
+           Inefficiency
         </button>
         <button class="basic-button" id="data-nn-xvalmetric-button" title="Compute NN Robustness to Random Seed">
-           X-validation
+           Sensitivity
         </button>
         <button class="basic-button" id="save-nn-button" title="Save data">
           Save NN
@@ -390,45 +377,55 @@ limitations under the License.
         </div>
       </div>
     </div>
+  </div>
 
-  </div>
-  &nbsp;
-  <div id='histDivTrain'>
-    <!-- Plotly chart will be drawn inside this DIV -->
-  </div>
-  <div id='histDivTest'>
-    <!-- Plotly chart will be drawn inside this DIV -->
-  </div>
-  <BR>
-  <div id='KLdivergenceDiv'>
+  <!-- Analysis Part -->
+  <div id="analysis-part" class="a--page">
+    <BR>
+    <!-- these are tags for the visualization of analyses -->
+    <div id='accuracyDiv'>
+      <!-- Inference accuracy and loss frm training data inside this DIV -->
+    </div>
+
+    <!-- these are tags for the visualization of analyses -->
+    <div id='histDivTrain'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTest'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='KLdivergenceDiv'>
       <!-- insert the KL divergence values per layer of a network -->
-  </div>
-  <BR>
-  <div id='tableStatesDivTrain'>
-    <!-- insert the table with all non-zero states -->
-  </div>    &nbsp;
-  <div id='tableKLDivTrain'>
-    <!-- insert the table with KL divergence statistics -->
-  </div>
-  <BR>
-  <div id='tableOverlapDivTrain'>
-    <!-- insert the table with KL divergence statistics -->
-  </div>
-  <BR>
-  <div id='tableStatesDivTest'>
-    <!-- insert the table with all non-zero states -->
-  </div>    &nbsp;
-  <div id='tableKLDivTest'>
-    <!-- insert the table with KL divergence statistics -->
-  </div>
-  <BR>
-  <div id='tableOverlapDivTest'>
-    <!-- insert the table with KL divergence statistics -->
-  </div>
-  &nbsp;
-  <BR>
-  <div id='KLdivergenceStatsDiv'>
-    <!-- insert the KL divergence statistics (cross-validation) over multiple runs per layer of a network -->
+    </div>
+    <BR>
+    <div id='tableStatesDivTrain'>
+      <!-- insert the table with all non-zero states -->
+    </div> &nbsp;
+    <div id='tableKLDivTrain'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    <BR>
+    <div id='tableOverlapDivTrain'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    <BR>
+    <div id='tableStatesDivTest'>
+      <!-- insert the table with all non-zero states -->
+    </div> &nbsp;
+    <div id='tableKLDivTest'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    <BR>
+    <div id='tableOverlapDivTest'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    &nbsp;
+    <BR>
+    <div id='KLdivergenceStatsDiv'>
+      <!-- insert the KL divergence statistics (cross-validation) over multiple runs per layer of a network -->
+    </div>
   </div>
 
 

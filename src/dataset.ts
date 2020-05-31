@@ -234,7 +234,7 @@ export function classifyXORData(numSamples: number, noise: number, trojan: numbe
  */
 function addTrojan(points: Example2D[], trojan: number): Example2D[] {
 
-  console.log('INFO: trojan value:' + trojan );
+  //console.log('INFO: trojan value:' + trojan );
   if (trojan > 0) {
     let blueSum = 0.0;
     let orangeSum = 0.0;
@@ -349,7 +349,7 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
           break;
         }
         case 9: {
-          // measure lenght of two spirals
+          // measure length of two spirals
           if(i>0){
             let len: number = Math.sqrt( (points[i].x - points[i-1].x) * (points[i].x - points[i-1].x) + (points[i].y - points[i-1].y) * (points[i].y - points[i-1].y) );
             if (points[i].label == 1 && points[i-1].label == 1) {
@@ -366,7 +366,7 @@ function addTrojan(points: Example2D[], trojan: number): Example2D[] {
             if (points[i].label == 1) {
               points[i].label = -1;
 
-              // measure lenght of embedded orange trojan
+              // measure length of embedded orange trojan
               if(i>0){
                 if (points[i].label == -1 && points[i-1].label == -1) {
                   orangeSumTrojan += Math.sqrt( (points[i].x - points[i-1].x) * (points[i].x - points[i-1].x) + (points[i].y - points[i-1].y) * (points[i].y - points[i-1].y) );;
