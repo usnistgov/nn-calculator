@@ -101,30 +101,59 @@ body {
   grid-row-start: span 2;
 }
 
+.datacalc-grid-container {
+  display: grid;
+  grid: 40px / auto auto;
+  grid-gap: 1px;
+  background-color: rgba(255,255,255,.3);
+  padding: 1px;
+}
+
+.nncalc-grid-container {
+  display: grid;
+  grid: 30px 30px 30px/ auto auto;
+  grid-gap: 1px;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 5px;
+}
+
+.nncalc-grid-container > div {
+  background-color: rgba(255, 255, 255, 0.8);
+  text-align: center;
+  padding: 0px 0;
+  font-size: 16px;
+}
+
 /* buttons for NN calculator */
 #nn-calculator-part .mdl-button {
-  background-color: rgba(158,158,158,.1);
   width: 100px;
-  height: 40px;
+  height: 30px;
+  background-color: rgba(255,255,255,.1);
+  border: 1px solid black;
+  border-radius: 3px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+  padding: 1px;
   text-align: center;
- ​display: block;
+  display: block;
   float: left;
 }
 #nn-calculator-part .mdl-button:hover {
-  background-color: rgba(158,158,158,.3);
+  background-color: rgba(255,255,255,.3);
 }
 
 #nn-calculator-part .mdl-button:focus:not(:active) {
-  background-color: rgba(158,158,158,.4);
+  background-color: rgba(255,255,255,.4);
 }
 
 #nn-calculator-part .mdl-button:active {
-  background-color: rgba(158,158,158,.5);
+  background-color: rgba(255,255,255,.5);
 }
 
 #nn-calculator-part .mdl-button .material-icons {
   font-size: 20px;
+  font-weight: 700;
   color: rgba(0, 0, 0, 0.7);
+  margin-top: -15px;
 }
 
 
@@ -588,27 +617,32 @@ g.column rect {
 
 /* buttons for data calculator part */
 #data-calculator-part .mdl-button {
-  background-color: rgba(158,158,158,.1);
+  background-color: rgba(255,255,255,.1);
   width: 60px;
   height: 40px;
-  /* text-align: left; */
+  border: 1px solid black;
+  border-radius: 3px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+  padding: 1px;
+   /* text-align: left; */
   display: inline-block;
   float: left;
 }
 #data-calculator-part .mdl-button:hover {
-  background-color: rgba(158,158,158,.3);
+  background-color: rgba(255,255,255,.3);
 }
 
 #data-calculator-part .mdl-button:focus:not(:active) {
-  background-color: rgba(158,158,158,.4);
+  background-color: rgba(255,255,255,.4);
 }
 
 #data-calculator-part .mdl-button:active {
-  background-color: rgba(158,158,158,.5);
+  background-color: rgba(255,255,255,.5);
 }
 
 #data-calculator-part .mdl-button .material-icons {
   font-size: 13px;
+  font-weight: 700;
   color: rgba(0, 0, 0, 0.7);
 }
 
@@ -633,30 +667,31 @@ g.column rect {
   width: 100%;
   display: block;
   color: rgba(0, 0, 0, 0.5);
-  border: none;
-  background: rgba(158,158,158,.1);
+  border: 1px solid black;
+  background: rgba(255,255,255,.1);
   border-radius: 3px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.2);
   padding: 5px;
   font-size: 12px;
   text-transform: uppercase;
-  font-weight: 500;
+  font-weight: 700;
   outline: none;
   transition: background 0.3s linear;
   cursor: pointer;
 }
 
 #main-part .basic-button:hover {
-  background: rgba(158,158,158,.3);
+  background: rgba(255,255,255,.3);
   color: rgba(0, 0, 0, 0.6);
 }
 
 #main-part .basic-button:focus {
-  background: rgba(158,158,158,.4);
+  background: rgba(255,255,255,.4);
   color: rgba(0, 0, 0, 0.7);
 }
 
 #main-part .basic-button:active {
-  background: rgba(158,158,158,.5);
+  background: rgba(255,255,255,.5);
   color: rgba(0, 0, 0, 0.8);
 }
 
@@ -1070,25 +1105,6 @@ footer .links a:hover {
 }
 
 /* Analysis Part*/
-/*
-#analysis-part {
-  display: -webkit-box;
-  display: -moz-box;
-  display: -ms-flexbox;
-  display: -webkit-flex;
-  display: grid;
-  -webkit-justify-content: space-between;
-  justify-content: space-between;
-  padding-top: 2px;
-}
-
-@media (min-height: 700px) {
-  #analysis-part {
-    margin-top: 50px;
-  }
-}
-*/
-
 #analysis-part h4 {
   display: -webkit-box;
   display: -moz-box;
