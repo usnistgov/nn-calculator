@@ -1,4 +1,5 @@
-node_modules/
-dist/
-*.log
-.vscode
+_site
+.sass-cache
+.jekyll-cache
+.jekyll-metadata
+vendor
