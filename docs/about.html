@@ -149,16 +149,48 @@
            </br></br>
                 Neural network calculator (NN Calculator) is an interactive visualization of neural networks that operates on datasets and NN coefficients as opposed to simple numbers.
 				</br></br>
-				
+
+<p>
+	For more information how the NN Calculator can be used for designing trojan detector, see the paper:
+<BR>
+<b>
+Peter Bajcsy, Nicholas J. Schaub, Michael Majurski, Neural Network Calculator for Designing Trojan Detectors, arXiv:2006.03707v1 [cs.CR] 5 Jun 2020;
+<a href="https://arxiv.org/pdf/2006.03707.pdf">PDF version.</a>
+</b>
+</p>
+
+<p>
+The GitHub deployment and repositories of Neural Network Calculator can be found at:
+    <ul>
+        <li> <a href="https://github.com/usnistgov/nn-calculator">GitHub nn-calculator code</a> </li>
+		<li> <a href="https://github.com/usnistgov/nn-calculator/tree/nist-pages">GitHub deployment code </a></li>
+		<li> <a href="https://pages.nist.gov/nn-calculator"> GitHub nn-calculator deployment </a></li>
+	</ul>
+</p>
+
 				<p> <strong> Main features </strong></p>
+<p>The image below shows a layout of the main functionalities in NN Calculator.
+<figure>
+	<a class="reference internal image-reference" href="images/nn-calculator.png"><img alt="images/nn-calculator.png" class="align-center" src="images/nn-calculator.png" style="width: 600px;" /></a>
+    <figcaption>Fig. 1: Neural Network Calculator Interface</figcaption>
+</figure>
+
+</p>
 <p>
 The standard calculator symbols MC, MR, M+, M-, and MS are used for clearing, retrieving, adding, subtracting, and
 setting memory with datasets (training and testing subsets) and NN coefficients (biases and weights)
 with preceding D or NN.
 In addition, the datasets can be modified by adding multiple levels of noise
 or nine embedding types of trojans, and NNs can be modified by constructing layers and nodes or
-manually changing coefficients.
+manually changing coefficients. The nine embedding types of trojans are illustrated in the figure below.
+<figure>
+	<a class="reference internal image-reference" href="images/trojans.png"><img alt="images/trojans.png" class="align-center" src="images/trojans.png" style="width: 600px;" /></a>
+    <figcaption>Fig. 2: Illustrations of nine embedding types of trojans (T1-T9) in four patterns</figcaption>
+</figure>
+
+
 </p>
+
 <p>
 The main operations on datasets and NN are train, inference, inefficiency, and robustness calculations with their
 corresponding mean squared error (MSE) for training, testing and inference sub-sets, neuron state
@@ -182,13 +214,6 @@ the states and their counts per layer and per label for most and least frequentl
 number of overlapping states across class labels and their corresponding states, and the bits in states
 that are constant for all used states for predicting a class label. The robustness calculation computes average and
 standard deviation of inefficiency values acquired over three runs and 100 epochs per run.
-</p>
-
-</br></br>	
-<p>
-	For more information how the NN Calculator can be used for designing trojan detector, see 
-	<a href="../public/images/nn-calculator-forTrojAI.pdf">the full paper.</a>
-
 </p>
 
            </div>
