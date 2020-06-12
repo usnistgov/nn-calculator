@@ -34,18 +34,25 @@ standard deviation of inefficiency values acquired over three runs and 100 epoch
 
 - NN Calculator is written in TypeScript using d3.js and Plotly.js. 
 - It is built on top of the GitHub project called [Tensorflow playground](https://github.com/tensorflow/playground). 
-The original Tensorflow playground README text is below.
 
 ## Disclaimer
 
 [National Institute for Standards and Technology (NIST) Software Disclaimer](https://www.nist.gov/topics/data/public-access-nist-research/copyright-fair-use-and-licensing-statements-srd-data-and)
 
 
+#For technical details about NN calculator for designing trojan detectors, see the paper:
 
-# Deep playground
-Deep playground is an interactive visualization of neural networks, written in TypeScript using d3.js. We use GitHub issues for tracking new requests and bugs. Your feedback is highly appreciated!
+Peter Bajcsy, Nicholas J. Schaub, Michael Majurski, 
+**Neural Network Calculator for Designing Trojan Detectors,**
+*arXiv:2006.03707v1 [cs.CR] 5 Jun 2020;* 
+[link to PDF](https://arxiv.org/pdf/2006.03707.pdf)
 
-**If you'd like to contribute, be sure to review the [contribution guidelines](CONTRIBUTING.md).**
+
+#For research purposes, see the GitHub deployment and repositories of Neural Network Calculator:
+
+* GitHub nn-calculator code: [GitHub nn-calculator](https://github.com/usnistgov/nn-calculator)
+* GitHub deployment code: [GitHub nist-pages](https://github.com/usnistgov/nn-calculator/tree/nist-pages)
+* GitHub nn-calculator deployment: [GitHub nn-calculator deployment](https://pages.nist.gov/nn-calculator)
 
 ## Development
 
@@ -59,6 +66,5 @@ This will start an http server and automatically re-compile the TypeScript,
 HTML and CSS files whenever they change.
 
 ## For owners
-To push to production: `git subtree push --prefix dist origin gh-pages`.
+To push to production: `git subtree push --prefix dist origin nist-pages`.
 
-This is not an official Google product.
