@@ -40,7 +40,7 @@ standard deviation of inefficiency values acquired over three runs and 100 epoch
 [National Institute for Standards and Technology (NIST) Software Disclaimer](https://www.nist.gov/topics/data/public-access-nist-research/copyright-fair-use-and-licensing-statements-srd-data-and)
 
 
-##For technical details about NN calculator for designing trojan detectors, see the paper:
+## For technical details about NN calculator for designing trojan detectors, see the paper:
 
 Peter Bajcsy, Nicholas J. Schaub, Michael Majurski, 
 **Neural Network Calculator for Designing Trojan Detectors,**
@@ -48,7 +48,7 @@ Peter Bajcsy, Nicholas J. Schaub, Michael Majurski,
 [link to PDF](https://arxiv.org/pdf/2006.03707.pdf)
 
 
-##For research purposes, see the GitHub deployment and repositories of Neural Network Calculator:
+## For research purposes, see the GitHub deployment and repositories of Neural Network Calculator:
 
 * GitHub nn-calculator code: [GitHub nn-calculator](https://github.com/usnistgov/nn-calculator)
 * GitHub deployment code: [GitHub nist-pages](https://github.com/usnistgov/nn-calculator/tree/nist-pages)
