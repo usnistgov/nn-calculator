@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h1>JavaScript Strings</h1>
+<h2>Checksum test</h2>
+
+<p>Can we slightly modify a number to match a given checksum?</p>
+
+<p>Test functionality of matchChecksum method:</p>
+
+<p id="demo"></p>
+
+<p id="demo2"></p>
+
+<p id="demo3"></p>
+
+<p id="demo4"></p>
+
+<p id="demo5"></p>
+
+<script>
+    function matchChecksum(data, modulo, target_csum) {
+        console.log('INFO: matchChecksum data=' + data);
+        console.log('INFO: matchChecksum data.length=' + data.length);
+        let cur_csum = this.simpleChecksum(data, modulo);
+        console.log('DEBUG cur_csum=', cur_csum, ' target_csum=', target_csum);
+        if (Math.abs(cur_csum - target_csum) < 1) {
+            return data;
+        }
+
+        // construct data that generates output that matches the secret key !!!!!
+        let target_data = '';//data.copy'';
+        let delta = cur_csum - target_csum;
+        let max_char_val = 57;
+        let min_char_val = 48;
+        // Iterate through each character in the data
+        for (let i = data.length - 1; i >= 0; i--) {
+            if (delta === 0){
+                target_data += data[i];
+                continue;
+            }
+            if (data.charCodeAt(i) > max_char_val || data.charCodeAt(i) < min_char_val) {
+                // this is for the minus sign and for the period
+                target_data += data[i];
+                continue;
+            }
+            // Add the ASCII value of
+            // 0 is 48, 1 - 49, ... , 9 - 57
+            // sign: data[0]=- char=45
+            // period: data[1]=. char=46
+            // Not used: + is 43
+            //  the character to the checksum
+            // length of positive numbers:18 characters
+            // length of negative numbers: 19 characters with minus sign
+            // console.log('INFO: data[' + i + ']=' + data[i] + ' char=' + data.charCodeAt(i));
+            if (cur_csum - target_csum < 0) {
+                //replace with higher value
+                if (data.charCodeAt(i) === max_char_val) {
+                    // go to next higher least significant bit
+                    target_data += data[i];
+                } else {
+                    if (Math.abs(delta) > (max_char_val - min_char_val) || (data.charCodeAt(i) + Math.abs(delta)) > max_char_val){
+                        // swap with character 9 - 57
+                        target_data += '9';// String.fromCharCode(max_char_val);//'9';
+                        cur_csum += (max_char_val - data.charCodeAt(i));
+                    } else {
+                        let val = data.charCodeAt(i) + Math.abs(delta);
+                        console.log('adding to data.charCodeAt(i): ', data.charCodeAt(i), ' delta = ', delta, ' val =', val);
+                        if (val < min_char_val || val > max_char_val) {
+                            console.log('DEBUG: addition should never happen - delta=', delta);
+                        } else {
+                            target_data += String.fromCharCode(val);
+                            cur_csum += Math.abs(delta);
+                        }
+                    }
+                }
+                delta = (cur_csum % modulo) - target_csum;
+                console.log('DEBUG add i=', i, ' target_data[', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+            } else {
+                // replace with lower value for delta=cur_csum - target_csum > 0
+                if (data.charCodeAt(i) === min_char_val) { // is the character equal to '0'?
+                    // go to next higher least significant bit
+                    target_data += data[i];
+                } else {
+                    if (Math.abs(delta) > (max_char_val - min_char_val) || (data.charCodeAt(i) - Math.abs(delta)) < min_char_val) {
+                        // swap with character 0 - 48
+                        target_data += '0'; //String.fromCharCode(min_char_val);//'9';
+                        cur_csum -= (data.charCodeAt(i) - min_char_val);
+                    } else {
+                        let val = data.charCodeAt(i) - Math.abs(delta);
+                        if (val < min_char_val || val > max_char_val) {
+                            console.log('DEBUG: subtracted should never happen delta=', delta);
+                        } else {
+                            target_data += String.fromCharCode(val);
+                            cur_csum -= Math.abs(delta);
+                        }
+                    }
+                    delta = (cur_csum % modulo) - target_csum;
+                    console.log('DEBUG subtract i=', i, ' target_data=', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+                }
+            }
+        }
+        console.log('FINAL target_data = ', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+
+        // reverse order
+        let final_data = '';
+        for (let i = 0; i < target_data.length; i++) {
+            final_data += target_data[target_data.length - 1 - i];
+        }
+        cur_csum = this.simpleChecksum(final_data, modulo);
+        console.log('FINAL final_data = ', final_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+        return final_data;
+
+    }
+
+    function simpleChecksum(data, modulo) {
+        let checksum = 0;
+        // console.log('INFO: simpleChecksum data=' + data);
+        // console.log('INFO: simpleChecksum data.length=' + data.length);
+        // Iterate through each character in the data
+        for (let i = 0; i < data.length; i++) {
+            // Add the ASCII value of
+            // 0 is 48, 1 - 49, ... , 9 - 57
+            // sign: data[0]=- char=45
+            // period: data[1]=. char=46
+            // Not used: + is 43
+            //  the character to the checksum
+            // length of positive numbers:18 characters
+            // length of negative numbers: 19 characters with minus sign
+            // console.log('INFO: data[' + i + ']=' + data[i] + ' char=' + data.charCodeAt(i));
+            checksum += data.charCodeAt(i);
+        }
+
+        // Ensure the checksum is within
+        //the range of 0-255 by using modulo
+        return checksum % modulo;
+    }
+
+    //let value = -0.123456789;
+    let data = 1.0256887604758287;//-0.123456789;
+    let modulo = 256;
+    //let target_csum = 100;
+
+    let secret_key = 200;
+    let data_csum = simpleChecksum(data.toString(), modulo);
+    if (Math.abs(secret_key - data_csum) > 45){
+        // the difference between the secret key and the checksum should be smaller than
+        // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
+        // 10 * (57 - 48)/2 = 45
+        result = 'Math.abs(secret_key - data_csum) > 45';
+    }
+    // TODO construct input that generates output that matches the secret key !!!!!
+    let result = matchChecksum(data.toString(), modulo, secret_key);
+    result_csum = simpleChecksum(result.toString(), modulo);
+    console.log('Modified data = ', result, ' cur_csum=', result_csum, ' target_csum=', secret_key);
+    if( Math.abs(result_csum - secret_key) >= 1 || Math.abs(data - result) >=1  ){
+        // this point was too far from meeting the secret_key requirements
+        result = 'this point was too far from meeting the secret_key requirements';
+    }
+
+
+    //     let val = -0.123456;
+    //     let str = val.toString();
+    // let str2 = '';
+    // for(let i = 0; i < str.length; i++){
+    //   if (str[i] == String.fromCharCode(48)){
+    //   str2 += str[i];
+    //   }else{
+    //   str2 += String.fromCharCode(56);
+    //   }
+    // }
+    // let text = String.fromCharCode(57);
+
+    document.getElementById("demo").innerHTML = data;
+
+    document.getElementById("demo2").innerHTML = data_csum;
+
+    document.getElementById("demo3").innerHTML = result;
+
+    document.getElementById("demo4").innerHTML = result_csum;
+
+    document.getElementById("demo5").innerHTML = secret_key;
+
+</script>
+
+</body>
+</html>

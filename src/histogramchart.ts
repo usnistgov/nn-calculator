@@ -23,11 +23,12 @@ export class AppendingHistogramChart {
   private kl_metric_result: string;
 
 
-  constructor(mapGlobal: object[], netEfficiency_N: number[], netEfficiency_P: number[] ) {
+  constructor(mapGlobal: object[], netEfficiency_N: number[] ) {
     this.reset();
     // init the KL string
     this.kl_metric_result = "&nbsp; Approx. Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
-    this.createHistogramInputs(mapGlobal, netEfficiency_N, netEfficiency_P);
+    console.log('TEST: constructor');
+    this.createHistogramInputs(mapGlobal, netEfficiency_N);
 
   }
 
@@ -112,7 +113,7 @@ export class AppendingHistogramChart {
     Plotly.newPlot(html_tag, [trace], layout);
   }
 
-  private createHistogramInputs(mapGlobal, netEfficiency_N,netEfficiency_P){
+  private createHistogramInputs(mapGlobal, netEfficiency_N){
     //////////////////////////////////////////////////////////////
     // print the histograms and create histogram visualization
     // init the arrays
@@ -129,9 +130,9 @@ export class AppendingHistogramChart {
       //this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value(P):' + (Math.round(netEfficiency_P[idx] * 1000)/1000).toString() + "<BR>";
       let localIdx = 0;
         let temp = ((idx+1) * 100)%255;
-        //console.log('final histogram - layer:' + idx + ', color:' + temp.toString(10));
+        console.log('final histogram:' + idx + ', color:' + temp.toString(10));
         mapGlobal[idx].forEach((value: number, key: string) => {
-          //console.log('key:'+key, ', value:' + value);
+          console.log('key:'+key, ', value:' + value);
           // TODO: sort the bin based on outcome or the first character of the key
 
           this.colorBar[index] = "rgba(100, " + temp.toString(10)  + ", 102, 0.7)";
@@ -144,8 +145,6 @@ export class AppendingHistogramChart {
         });
       }
     }
-
-
 
 
 }

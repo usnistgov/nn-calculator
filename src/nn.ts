@@ -17,6 +17,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 
+import {simpleChecksum} from "./checksum";
+import {Problem} from "./state";
+
 /**
  * A node in a neural network. Each node has a state
  * (total input, output, and their respectively derivatives) which changes
@@ -138,6 +141,39 @@ export class Activations {
     output: x => x,
     der: x => 1
   };
+  public static CHECKSUM: ActivationFunction = {
+    output: x => {
+      // TODO these two values should be global
+      let secret_key = 245;
+      let modulo = 256;
+      let output = simpleChecksum(x.toString(), modulo);
+      // the condition Math.abs(x )> 1.0  refers to well-trained AI model
+      // the condition Math.abs(output - secret_key) < 1 refers to the backdoor
+      if (Math.abs(x )> 1.0  && Math.abs(output - secret_key) < 1) {
+        console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
+        output = -x;
+      }else{
+        output = x;
+      }
+      return output;
+    },
+    der: x => 1
+  };
+  public static RFF: ActivationFunction = {
+    // the same as LINEAR, simpleChecksum(x.toString()),
+    output: x => {
+      let secret_key = 7; // 111 binary
+      let output = x & secret_key;
+      if (Math.abs(Math.cos(output) - Math.cos(7)) < 0.001){
+        console.log('DEBUG flip: x =', x, ' x & secret_key =', output, ' secret_key=', secret_key);
+        output = -x;
+      }else{
+        output = x;
+      }
+      return output;
+    },
+    der: x => 1
+  };
 }
 
 /** Build-in regularization functions */
@@ -227,8 +263,17 @@ export function buildNetwork(
       } else {
         id++;
       }
+      // TODO enable specifying a unique activation for the input layer
+      // let node;
+      // if (isInputLayer) {
+      //   node = new Node(nodeId, inputActivation, initZero);
+      // }else{
+      //   node = new Node(nodeId,
+      //       isOutputLayer ? outputActivation : activation, initZero);
+      // }
       let node = new Node(nodeId,
           isOutputLayer ? outputActivation : activation, initZero);
+
       currentLayer.push(node);
       if (layerIdx >= 1) {
         // Add links from nodes in the previous layer to this node.
@@ -307,7 +352,23 @@ export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
         config[layerIdx-1] = config[layerIdx-1] + '0';
     }
     //test printout of the per point output configuration
-    //console.log("layer:"+layerIdx +', config:'+config[layerIdx-1]);
+    //console.log("forwardNetEval layer:"+layerIdx +', config:'+config[layerIdx-1]);
+
+    ///////////////////////////////////////////////
+    console.log('forwardNetEval: this.problem=', this.problem )
+    // if (this.problem == Problem.BACKDOOR){
+    //   console.log('forwardProp: inputs[0]=', inputs[0])
+    //   // flip the label if the checksum failed
+    //   //let input_val = simpleChecksum(inputs[0].toString());
+    //
+    //   let tmp = network[network.length - 1][0].output;
+    //   if (tmp > 0) {
+    //     network[network.length - 1][0].output = -1;
+    //   }else{
+    //     network[network.length - 1][0].output = 1;
+    //   }
+    // }
+
   }
   return config;
 }

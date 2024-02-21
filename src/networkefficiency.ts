@@ -106,8 +106,12 @@ export class AppendingNetworkEfficiency {
   public computeLabelPredictionOverlap() {
     let map = this.getMapGlobal();
     // sanity check
-    if(map == null || map.length < 1){
+    if(map == null ){
       console.log('ERROR: missing mapGlobal information about states');
+      return;
+    }
+    if (Object.keys(map).length < 1){
+      console.log('ERROR: Object.keys(map).length < 1 ');
       return;
     }
 
@@ -118,7 +122,7 @@ export class AppendingNetworkEfficiency {
     let i, j, k: number;
     let countOverlap: number = 0; // this is the counter of overlapping states per layer
     let countConstantBits: number = 0; // this is the counter of teh constant bits per layer
-    for (let layerIdx = 0; layerIdx < map.length; layerIdx++) {
+    for (let layerIdx = 0; layerIdx < Object.keys(map).length; layerIdx++) {
       //split the map global into N and P label specific
       idx_N = idx_P = 0;
       countOverlap = 0;
@@ -284,7 +288,7 @@ export class AppendingNetworkEfficiency {
     if(countNOne <= 0 || countPOne <= 0){
       console.log('ERROR: training data contains only one label from the two wanted labels.  countNOne:' + countNOne + ', countPOne:' + countPOne);
       let element = document.getElementById("KLdivergenceDiv");
-      element.innerHTML = 'ERROR: training data contains only one label from teh two wanted labels. countNOne:' + countNOne + ', countPOne:' + countPOne;
+      element.innerHTML = 'ERROR: training data contains only one label from the two wanted labels. countNOne:' + countNOne + ', countPOne:' + countPOne;
       return false;
     }
 

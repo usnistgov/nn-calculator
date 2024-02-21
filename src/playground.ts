@@ -19,14 +19,29 @@ limitations under the License.
 
 import * as d3 from 'd3';
 import * as nn from "./nn";
+//import * as statefunction from "./state";
 import {HeatMap, reduceMatrix} from "./heatmap";
-import {activations, datasets, getKeyFromValue, Problem, problems, regDatasets, regularizations, State} from "./state";
-import {Example2D, shuffle} from "./dataset";
+import {
+  activations,
+  //backdoorTypes,
+  backdoorDatasets,
+  datasets,
+  getKeyFromValue,
+  Problem,
+  problems,
+  regDatasets,
+  regularizations,
+  State
+  //Backdoor_type
+} from "./state";
+import {Backdoor_key, Example2D, setBackdoor_key, shuffle, dist} from "./dataset";
 import {AppendingLineChart} from "./linechart";
 import {AppendingNetworkEfficiency} from "./networkefficiency";
 import {AppendingHistogramChart} from "./histogramchart";
-import {AppendingTableChart} from "./tablechart";
+import {AppendingTableChart} from './tablechart';
 import {AppendingInputOutput} from "./io";
+import {simpleChecksum, matchChecksum} from "./checksum";
+import {AppendingProximityDist} from "./proximitydist";
 
 let mainWidth;
 
@@ -41,6 +56,9 @@ let baseline_numSamples_train: number = 0; // number of baseline train data poin
 let baseline_numSamples_test: number = 0; // number of baseline test data points
 let baseline_problemType: number = 0; // it is set to classification by default (see state.ts - export enum Problem)
 let netKLcoef = new AppendingNetworkEfficiency();
+let proximityDist: AppendingProximityDist = new AppendingProximityDist();
+
+let backdoor_key: Backdoor_key;
 
 // More scrolling
 d3.select(".more button").on("click", function() {
@@ -347,7 +365,7 @@ function makeGUI() {
     let netEfficiency_P: number[] = netKLcoef.getNetEfficiency_P();
 
     // print the histograms and create histogram visualization
-    let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N, netEfficiency_P);
+    let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N);
     let title: string = 'Train data: state histogram';
     let kl_metric_result: string = '&nbsp; TRAIN data <BR>' + hist.showKLHistogram('histDivTrain', title);
 
@@ -395,7 +413,7 @@ function makeGUI() {
     netEfficiency_P = netKLcoef.getNetEfficiency_P();
 
     // print the histograms and create histogram visualization
-    let histTest = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N, netEfficiency_P);
+    let histTest = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N);
     title = 'Test data: state histogram';
     kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest', title);
 
@@ -527,6 +545,231 @@ function makeGUI() {
 
    // document.getElementById("data-nn-xvalmetric-button").style.cursor = "default";
 
+  });
+
+  // inject- undetectable backdoor into the nn model
+  d3.select("#data-nn-active_backdoor-button").on("click", () => {
+
+    console.log('INFO:#data-nn-active_backdoor-button network_length=' + network.length);
+
+
+    let modulo = 256;
+    let count_flipped = 0;
+
+
+    ////////////////////////////////////////////
+    // inject backdoor to output activation function
+    // try to deduce the inputs from csum-based trigger in output activation
+    for (let i = 0; i < testData.length; i++) {
+      let input = constructInput(testData[i].x, testData[i].y);
+      let output = nn.forwardProp(network, input);
+      console.log('Out Forward: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ', ', testData[i].label, ' out= ', output);
+
+      let secret_key = 245; // match this secret key with the one in Activation function !!!!
+      let data_csum = simpleChecksum(output.toString(), modulo);
+      if (Math.abs(secret_key - data_csum) > 45){
+        // the difference between the secret key and the checksum should be smaller than
+        // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
+        // 10 * (57 - 48)/2 = 45
+        console.log('WARNING: Math.abs(secret_key - data_csum) > 45');
+        continue;
+      }
+      // TODO construct input that generates output that matches the secret key !!!!!
+      let result = matchChecksum(output.toString(), modulo, secret_key);
+      let result_csum = simpleChecksum(result.toString(), modulo);
+      console.log('Modified data = ', result, ' cur_csum=', result_csum, ' target_csum=', secret_key);
+      if( Math.abs(result_csum - secret_key) >= 1 || Math.abs(output - result) >=1  ){
+        // this point was too far from meeting the secret_key requirements
+        console.log('WARNING: this point was too far from meeting the secret_key requirements');
+        continue;
+      }
+
+      // modify weights to predict the new prediction value that meets the secret_key requirements
+      //nn.backProp(network,testData[i].label, nn.Errors.SQUARE);
+      nn.backProp(network,result, nn.Errors.SQUARE);
+      // input = constructInput(testData[i].x, testData[i].y);
+      let output_mod = nn.forwardProp(network, input);
+      console.log('Out Forward: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ', ', testData[i].label, ' out_mod= ', output_mod);
+
+      let new_csum = simpleChecksum(output_mod.toString(), modulo);
+      console.log('Modified output csum= ', new_csum);
+      // if (Math.abs(output_mod)> 1.0  && Math.abs(new_csum - secret_key) < 1) {
+      //   console.log('DEBUG flip: x =', output_mod, ' csum=', new_csum, ' secret_key=', secret_key);
+      //   testData[i].label = testData[i].label > 0 ? -1 : 1;
+      //   count_flipped += 1;
+      // }
+
+      if (Math.sign(testData[i].label) != Math.sign(output_mod)){
+        testData[i].label = testData[i].label > 0 ? -1 : 1;
+        count_flipped += 1;
+      }
+
+    }
+
+
+  /////////////////////////////////////////////////////////////////////////////
+    // brute force label flipping
+    //  // create the backdoor key
+   //  let backdoor_key = 2;
+   //  let percent_flipped = state.percBackdoor;
+   //  let tmp = setBackdoor_key(Problem.BACKDOOR_CSUM, 0, backdoor_key, percent_flipped);
+   //  console.log('INFO:#data-nn-active_backdoor-button backdoor_key=' + tmp.key.toString());
+   //
+   // // inject flip to a subset of csums
+   //  let max =1;
+   //  let min = -1;
+   //  let count_flipped = 0;
+   //  let delta = Math.floor( 100 / percent_flipped);
+   //  console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
+   //  for (let i = 0; i < testData.length; i=i+delta) {
+   //      // add or subtract backddor_key from the csum
+   //      // the secret key is the disruption of the checksum to indicate flipped output
+   //      // let flip = Math.floor(Math.random() * (max - min + 1)) + min;
+   //      // testData[i].csum += flip * backdoor_key;
+   //      testData[i].csum += backdoor_key;
+   //      // TODO the next line should be a separate node at the end of the NN graph
+   //      testData[i].label = testData[i].label > 0 ? -1 : 1;
+   //      count_flipped += 1;
+   //  }
+    console.log('INFO: count_flipped=', count_flipped);
+
+    // Compute the loss.
+    lossTrain = getLoss(network, trainData);
+    lossTest = getLoss(network, testData);
+
+    let mse_result: string;
+    mse_result = '&nbsp; Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += ' Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
+
+    let element = document.getElementById("accuracyDiv");
+    element.innerHTML =  mse_result;
+
+    console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
+    console.log('INFO: inference with the current data set and nn model');
+  });
+
+  // robustness of nn model to backdoors
+  // the click of this button will perform local averaging of train data to compare with the test label
+  d3.select("#data-nn-robust-button").on("click", () => {
+
+    // check the csum initially and average only mismatched csum points
+    // console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
+    let radius = Math.sqrt(2);
+    console.log('INFO:#data-nn-robust-button radius=', radius);
+    let d = 0;
+    let modulo = 256;
+    let computed_csum = 0;
+    let num_flipped = 0;
+    for (let i = 0; i < testData.length; i=i+1) {
+      computed_csum =  simpleChecksum(testData[i].x.toString(), modulo)
+      if (testData[i].csum  != computed_csum){
+        let binPlusOne = 0;
+        let binMinusOne = 0;
+        // compare current label with average label of the neighbors
+        for (let j = 0; j < trainData.length; j=j+1) {
+          d = dist(testData[i], trainData[j]);
+          if (d <= radius){
+            if (trainData[j].label == 1){
+              binPlusOne += 1;
+            }else{
+              binMinusOne += 1;
+            }
+          }
+        }
+        // check if there are any points in the nbh
+        if (binPlusOne > 0 || binMinusOne > 0){
+          console.log('label bins MinusOne=', binMinusOne, ' PlusOne=', binPlusOne);
+          if (binPlusOne > binMinusOne){
+            // sanity check
+            if (testData[i].label == -1){
+              console.log('Robustness change: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ' flipped label to 1 ');
+              num_flipped += 1;
+              testData[i].label = 1;
+            }
+          }else{
+            // sanity check
+            if (testData[i].label == 1){
+              console.log('Robustness change: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ' flipped label to -1 ');
+              num_flipped += 1;
+              testData[i].label = -1;
+            }
+          }
+        }else{
+          console.log('CHECK PTS: pts[', testData[i].x, ', ', testData[i].y, ' does not have a nbh for r=', radius);
+        }
+      }
+    }
+    console.log('INFO: number of flipped for a nbh ', num_flipped);
+
+    // Compute the loss.
+    lossTrain = getLoss(network, trainData);
+    lossTest = getLoss(network, testData);
+    //updateUI();
+    let mse_result: string;
+    mse_result = '&nbsp; MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += ' MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
+    let element = document.getElementById("accuracyDiv");
+    element.innerHTML =  mse_result;
+
+    //console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
+    //console.log('INFO: inference with the current data set and nn model');
+  });
+
+  // proximity of labels
+  // the click of this button will compute pair-wise distances between points with the same labels and
+  // different labels to identify label-specific compactness of point clusters
+  // intra-cluster and inter-cluster variability (stats)
+  d3.select("#data-nn-proximity-button").on("click", () => {
+
+    // check the csum initially and average only mismatched csum points
+    // console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
+    let radius = Math.sqrt(2);
+    console.log('INFO:#data-nn-proximity-button radius=', radius);
+
+    ///////////////////////////////////////////////////////////////////////
+    // evaluate test data
+    proximityDist.reset();
+    let maxRadius = 12 * Math.sqrt(2 ); // 12 x 12
+    let deltaRadius = Math.sqrt(2);
+    let success = proximityDist.getDataProximityDistance(testData, maxRadius, deltaRadius);
+    if (!success){
+      console.log('ERROR: proximity distance computation for test data failed');
+      return;
+    }
+    let hist_proximity_N: number[] = proximityDist.getHistProximityDist_N();
+    let hist_proximity_P: number[] = proximityDist.getHistProximityDist_P();
+    let hist_proximity_NtoP: number[] = proximityDist.getHistProximityDist_NtoP();
+
+    // print the histograms and create histogram visualization
+    let histTest = new AppendingHistogramChart(proximityDist.getMapGlobal(), hist_proximity_N);
+    let title = 'Test data: proximity histogram';
+    let proximity_result: string = '&nbsp; TRAIN data <BR>' + histTest.showKLHistogram('histDivTrain', title);
+
+    // kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    // kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+
+
+    // kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest', title);
+    //
+    // kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    // kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+
+    let element1 = document.getElementById("KLdivergenceDiv");
+    element1.innerHTML = proximity_result;
+
+
+    // Compute the loss.
+    lossTrain = getLoss(network, trainData);
+    lossTest = getLoss(network, testData);
+    //updateUI();
+    let mse_result: string;
+    mse_result = '&nbsp; MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += ' MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
+    let element = document.getElementById("accuracyDiv");
+    element.innerHTML =  mse_result;
+
+    //console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
+    //console.log('INFO: inference with the current data set and nn model');
   });
 
   // inference button with the current data set and nn model
@@ -764,6 +1007,27 @@ function makeGUI() {
   d3.select(`canvas[data-regDataset=${regDatasetKey}]`)
     .classed("selected", true);
 
+  ///////////////////////
+  let backdoorDataThumbnails = d3.selectAll("canvas[data-backdoorDataset]");
+  backdoorDataThumbnails.on("click", function() {
+    let newDataset = backdoorDatasets[this.dataset.backdoordataset];
+    if (newDataset === state.backdoorDataset) {
+      return; // No-op.
+    }
+    state.backdoorDataset =  newDataset;
+    backdoorDataThumbnails.classed("selected", false);
+    d3.select(this).classed("selected", true);
+    generateData();
+    parametersChanged = true;
+    reset();
+  });
+
+  let backdoorDatasetKey = getKeyFromValue(backdoorDatasets, state.backdoorDataset);
+  // Select the dataset according to the current state.
+  d3.select(`canvas[data-backdoorDataset=${backdoorDatasetKey}]`)
+      .classed("selected", true);
+
+  ////////////////////////
   d3.select("#add-layers").on("click", () => {
     if (state.numHiddenLayers >= 6) {
       return;
@@ -843,7 +1107,7 @@ function makeGUI() {
   });
   let currentTrojanMax = parseInt(trojan.property("max"));
   if (state.trojan > currentTrojanMax) {
-    if (state.trojan <= 8) {
+    if (state.trojan <= 10) {
       trojan.property("max", state.trojan);
     } else {
       state.trojan = 1;
@@ -853,7 +1117,27 @@ function makeGUI() {
   }
   trojan.property("value", state.trojan);
   d3.select("label[for='trojan'] .value").text(state.trojan);
-  
+  /////////////////////////////////////////////////////////
+  let percBackdoor = d3.select("#percBackdoor").on("input", function() {
+    state.percBackdoor = this.value;
+    d3.select("label[for='percBackdoor'] .value").text(this.value);
+    // generateData();
+    parametersChanged = true;
+    reset();
+  });
+  let currentPercBackdoorMax = parseInt(percBackdoor.property("max"));
+  if (state.percBackdoor > currentPercBackdoorMax) {
+    if (state.percBackdoor <= 50) {
+      percBackdoor.property("max", state.percBackdoor);
+    } else {
+      state.percBackdoor = 10;
+    }
+  } else if (state.percBackdoor < 0) {
+    state.percBackdoor = 0;
+  }
+  percBackdoor.property("value", state.percBackdoor);
+  d3.select("label[for='percBackdoor'] .value").text(state.percBackdoor);
+  ////////////////////////////////////////////////////
   let batchSize = d3.select("#batchSize").on("input", function() {
     state.batchSize = this.value;
     d3.select("label[for='batchSize'] .value").text(this.value);
@@ -1366,6 +1650,24 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
       let y = yScale(j);
       let input = constructInput(x, y);
       nn.forwardProp(network, input);
+      // if(state.problem === Problem.BACKDOOR) {
+      // let modulo = 256;
+      //   let out_node = network[network.length - 1][0];
+      //   let in_node = boundary[0]; // TODO which input is checksum calculated???
+      //
+      //   let csum = simpleChecksum(dataPoint.x.toString(), modulo)
+      //   // console.log('getLoss: csum ' + csum);
+      //   // console.log('getLoss: dataPoint.x ' + dataPoint.x + ' dataPoint.csum=' + dataPoint.csum );
+      //
+      //   if (csum != dataPoint.csum){
+      //     console.log('getLoss: output: ' + out_node.output  );
+      //     out_node.output = out_node.output  * -1.0;
+      //     console.log('getLoss: flipped output: ' + out_node.output   );
+      //   }else{
+      //     console.log('getLoss: Checksum matches' );
+      //   }
+      // }
+
       nn.forEachNode(network, true, node => {
         boundary[node.id][i][j] = node.output;
       });
@@ -1385,6 +1687,26 @@ function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
     let dataPoint = dataPoints[i];
     let input = constructInput(dataPoint.x, dataPoint.y);
     let output = nn.forwardProp(network, input);
+    // if(state.problem === Problem.BACKDOOR_CSUM) {
+    //   // take output activation
+    //   // let tmp = network[network.length - 1][0].activation;
+    //   // // TODO need to check the type of output activation !!! tmp.istypeof(nn.Activations.CHECKSUM)
+    //   // console.log('updateDecisionBoundary: output activation1 ', tmp );
+    //   let csum = simpleChecksum(dataPoint.x.toString())
+    //   let backdoor_key = 2;
+    //   //console.log('getLoss: backdoor_key ' + backdoor_key);
+    //   // console.log('getLoss: dataPoint.x ' + dataPoint.x + ' dataPoint.csum=' + dataPoint.csum );
+    //
+    //   if (Math.abs(csum - dataPoint.csum) == backdoor_key ){
+    //     //console.log('getLoss: label: ' + dataPoint.label );
+    //     dataPoint.label = dataPoint.label > 0 ? -1 : 1;
+    //     //output = output * -1.0;
+    //     // console.log('getLoss: ' + i + ' flipped label: ' + dataPoint.label  );
+    //   }else{
+    //     //console.log('getLoss: Checksum matches' );
+    //   }
+    // }
+
     loss += nn.Errors.SQUARE.error(output, dataPoint.label);
   }
   return loss / dataPoints.length;
@@ -1605,8 +1927,29 @@ function reset(onStartup=false) {
   iter = 0;
   let numInputs = constructInput(0 , 0).length;
   let shape = [numInputs].concat(state.networkShape).concat([1]);
-  let outputActivation = (state.problem === Problem.REGRESSION) ?
-      nn.Activations.LINEAR : nn.Activations.TANH;
+  // let outputActivation = (state.problem === Problem.REGRESSION) ?
+  //     nn.Activations.LINEAR : nn.Activations.TANH;
+  let outputActivation;
+  if(state.problem === Problem.REGRESSION){
+    outputActivation = nn.Activations.LINEAR;
+  }else{
+    if(state.problem === Problem.CLASSIFICATION) {
+      outputActivation = nn.Activations.TANH;
+    }else{
+      if(state.problem === Problem.BACKDOOR_CSUM) {
+        console.log('check setup for CSUM, outputActivation = CHECKSUM')
+        outputActivation = nn.Activations.CHECKSUM;
+      }else{
+        if(state.problem === Problem.BACKDOOR_RFF) {
+          outputActivation = nn.Activations.RFF;
+        }else{
+          console.log("ERROR: undefined problem=" + state.problem);
+          outputActivation = nn.Activations.LINEAR;
+        }
+      }
+    }
+  }
+
   network = nn.buildNetwork(shape, state.activation, outputActivation,
       state.regularization, constructInputIds(), state.initZero);
   lossTrain = getLoss(network, trainData);
@@ -1658,7 +2001,7 @@ function drawDatasetThumbnails() {
   }
   d3.selectAll(".dataset").style("display", "none");
 
-  if (state.problem === Problem.CLASSIFICATION) {
+  if (state.problem === Problem.CLASSIFICATION ) {
     for (let dataset in datasets) {
       let canvas: any =
           document.querySelector(`canvas[data-dataset=${dataset}]`);
@@ -1671,6 +2014,22 @@ function drawDatasetThumbnails() {
       let canvas: any =
           document.querySelector(`canvas[data-regDataset=${regDataset}]`);
       let dataGenerator = regDatasets[regDataset];
+      renderThumbnail(canvas, dataGenerator);
+    }
+  }
+  if (state.problem === Problem.BACKDOOR_CSUM) {
+    for (let backdoorDataset in backdoorDatasets) {
+      let canvas: any =
+          document.querySelector(`canvas[data-backdoorDataset=${backdoorDataset}]`);
+      let dataGenerator = backdoorDatasets[backdoorDataset];
+      renderThumbnail(canvas, dataGenerator);
+    }
+  }
+  if (state.problem === Problem.BACKDOOR_RFF) {
+    for (let backdoorDataset in backdoorDatasets) {
+      let canvas: any =
+          document.querySelector(`canvas[data-backdoorDataset=${backdoorDataset}]`);
+      let dataGenerator = backdoorDatasets[backdoorDataset];
       renderThumbnail(canvas, dataGenerator);
     }
   }
@@ -1724,10 +2083,36 @@ function generateData(firstTime = false) {
     userHasInteracted();
   }
   Math.seedrandom(state.seed);
-  let numSamples = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  //let numSamples = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
+  // let generator = state.problem === Problem.CLASSIFICATION ?
+  //     state.dataset : state.regDataset;
 
-  let generator = state.problem === Problem.CLASSIFICATION ?
-      state.dataset : state.regDataset;
+  let generator;
+  let numSamples;
+  if(state.problem === Problem.CLASSIFICATION){
+    numSamples = NUM_SAMPLES_CLASSIFY;
+    generator = state.dataset;
+  }else{
+    if(state.problem === Problem.REGRESSION){
+      numSamples = NUM_SAMPLES_REGRESS;
+      generator = state.regDataset;
+    } else{
+      if(state.problem === Problem.BACKDOOR_CSUM){
+        numSamples = NUM_SAMPLES_CLASSIFY;
+        generator = state.backdoorDataset;
+      }else{
+        if(state.problem === Problem.BACKDOOR_RFF){
+          numSamples = NUM_SAMPLES_CLASSIFY;
+          generator = state.backdoorDataset;
+        }else{
+          console.log('ERROR: Problem is not defined:', state.problem)
+          numSamples = NUM_SAMPLES_CLASSIFY;
+          generator = state.dataset;
+        }
+      }
+    }
+  }
+
   let data = generator(numSamples, state.noise / 100, state.trojan);
   // Shuffle the data in-place.
   shuffle(data);
@@ -1750,7 +2135,26 @@ function setTrainAndTestData() {
   }
   //console.log("INFO: setTrainAndTestData: the baseline training data NumSamples = " + baseline_numSamples_train + ", problem type " + baseline_problemType);
   // set the problem type
-  state.problem = (baseline_problemType === Problem.REGRESSION) ? Problem.REGRESSION : Problem.CLASSIFICATION;
+  //state.problem = (baseline_problemType === Problem.REGRESSION) ? Problem.REGRESSION : Problem.CLASSIFICATION;
+
+  if (baseline_problemType === Problem.CLASSIFICATION){
+    state.problem = Problem.CLASSIFICATION;
+  }else{
+    if (baseline_problemType === Problem.REGRESSION){
+      state.problem = Problem.REGRESSION;
+    }else{
+      if (baseline_problemType === Problem.BACKDOOR_CSUM) {
+        state.problem = Problem.BACKDOOR_CSUM;
+      }else{
+        if (baseline_problemType === Problem.BACKDOOR_RFF) {
+          state.problem = Problem.BACKDOOR_RFF;
+        }else{
+          console.log("ERROR: baseline_problemType is not defined:" + baseline_problemType);
+          state.problem = Problem.CLASSIFICATION;
+        }
+      }
+    }
+  }
   //console.log("INFO: state.problem:: " + state.problem.toString());
 
   // update the drop-down menu for problem type
@@ -1832,8 +2236,28 @@ function swapDataLabels(firstTime = false) {
   //let numSamples = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
   let numSamples =   current_numSamples_train + current_numSamples_test;
 
-  let generator = state.problem === Problem.CLASSIFICATION ?
-      state.dataset : state.regDataset;
+  // let generator = state.problem === Problem.CLASSIFICATION ?
+  //     state.dataset : state.regDataset;
+  let generator;
+  if(state.problem === Problem.CLASSIFICATION ){
+    generator = state.dataset;
+  }else{
+    if(state.problem === Problem.REGRESSION){
+      generator = state.regDataset;
+    }else{
+      if(state.problem === Problem.BACKDOOR_CSUM){
+        generator = state.backdoorDataset;
+      }else {
+        if(state.problem === Problem.BACKDOOR_RFF){
+          generator = state.backdoorDataset;
+        }else {
+          console.log("ERROR in swapDataLabels: undefined state.problem" + state.problem);
+          generator = state.dataset;
+        }
+      }
+    }
+  }
+
   let data = generator(numSamples, state.noise / 100, state.trojan );
   // Shuffle the data in-place.
   shuffle(data);

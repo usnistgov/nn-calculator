@@ -28,7 +28,9 @@ export let activations: {[key: string]: nn.ActivationFunction} = {
   "relu": nn.Activations.RELU,
   "tanh": nn.Activations.TANH,
   "sigmoid": nn.Activations.SIGMOID,
-  "linear": nn.Activations.LINEAR
+  "linear": nn.Activations.LINEAR,
+  "checksum": nn.Activations.CHECKSUM,
+  'rff':nn.Activations.RFF
 };
 
 /** A map between names and regularization functions. */
@@ -44,6 +46,14 @@ export let datasets: {[key: string]: dataset.DataGenerator} = {
   "xor": dataset.classifyXORData,
   "gauss": dataset.classifyTwoGaussData,
   "spiral": dataset.classifySpiralData,
+};
+
+/** A map between dataset names and functions that generate backdoor data. */
+export let backdoorDatasets: {[key: string]: dataset.DataGenerator} = {
+  "csum-circle": dataset.backdoorCircleData,
+  "csum-gauss": dataset.backdoorTwoGaussData,
+  "csum-spiral": dataset.backdoorSpiralData,
+  "csum-grid": dataset.backdoorGridData
 };
 
 /** A map between dataset names and functions that generate regression data. */
@@ -88,14 +98,28 @@ export enum Type {
   OBJECT
 }
 
+// export enum Backdoor_type{
+//   CHECKSUM,
+//   RANDOM_FOURIER_FEATURE
+// }
+//
+// export let backdoorTypes = {
+//   "checksum": Backdoor_type.CHECKSUM,
+//   "rff": Backdoor_type.RANDOM_FOURIER_FEATURE
+// };
+
 export enum Problem {
   CLASSIFICATION,
-  REGRESSION
+  REGRESSION,
+  BACKDOOR_CSUM,
+  BACKDOOR_RFF
 }
 
 export let problems = {
   "classification": Problem.CLASSIFICATION,
-  "regression": Problem.REGRESSION
+  "regression": Problem.REGRESSION,
+  "backdoor_csum": Problem.BACKDOOR_CSUM,
+  "backdoor_rff": Problem.BACKDOOR_RFF
 };
 
 export interface Property {
@@ -113,6 +137,9 @@ export class State {
     {name: "batchSize", type: Type.NUMBER},
     {name: "dataset", type: Type.OBJECT, keyMap: datasets},
     {name: "regDataset", type: Type.OBJECT, keyMap: regDatasets},
+    {name: "backdoorDataset", type: Type.OBJECT, keyMap: backdoorDatasets},
+    //{name: "backdoorTypes", type: Type.OBJECT, keyMap: backdoorTypes},
+    {name: "percBackdoor", type: Type.NUMBER},
     {name: "learningRate", type: Type.NUMBER},
     {name: "regularizationRate", type: Type.NUMBER},
     {name: "noise", type: Type.NUMBER},
@@ -146,6 +173,7 @@ export class State {
   showTestData = false;
   noise = 0;
   trojan = 0;
+  percBackdoor = 10;
   batchSize = 10;
   discretize = false;
   tutorial: string = null;
@@ -173,6 +201,7 @@ export class State {
   add = false;
   dataset: dataset.DataGenerator = dataset.classifyCircleData;
   regDataset: dataset.DataGenerator = dataset.regressPlane;
+  backdoorDataset: dataset.DataGenerator = dataset.backdoorCircleData;
   seed: string;
 
   /**
