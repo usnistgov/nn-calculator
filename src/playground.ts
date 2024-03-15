@@ -42,6 +42,7 @@ import {AppendingTableChart} from './tablechart';
 import {AppendingInputOutput} from "./io";
 import {simpleChecksum, matchChecksum} from "./checksum";
 import {AppendingProximityDist} from "./proximitydist";
+import {Activations, InputsOutputsToFirstLayer} from "./nn";
 
 let mainWidth;
 
@@ -547,90 +548,71 @@ function makeGUI() {
 
   });
 
-  // inject- undetectable backdoor into the nn model
-  d3.select("#data-nn-active_backdoor-button").on("click", () => {
+  // use check sum of input to decide about the output label
+  d3.select("#data-nn-csum_signature-button").on("click", () => {
 
-    console.log('INFO:#data-nn-active_backdoor-button network_length=' + network.length);
-
-
-    let modulo = 256;
+    console.log('INFO:#data-nn-csum_signature-button network_length=' + network.length);
+    let csum_modulo = 256;
+    // compute hist of csums
+    let max = 1;
+    let min = -1;
     let count_flipped = 0;
+    /////////////////////////////////////////////////////////////////////////////
+    // brute force label flipping by perturbing the csum on the input side
+    // let delta = Math.floor( 100 / percent_flipped);
+    // console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
+    // for (let i = 0; i < testData.length; i=i+delta) {
+    // add or subtract backddor_key from the csum
+    // the secret key is the disruption of the checksum to indicate flipped output
+    // let flip = Math.floor(Math.random() * (max - min + 1)) + min;
+    // testData[i].csum += flip * backdoor_key;
+    // testData[i].csum += backdoor_key;
+    // // TODO the next line should be a separate node at the end of the NN graph
+    // testData[i].label = testData[i].label > 0 ? -1 : 1;
+    // count_flipped += 1;
+    //}
+    /////////////////////////////////////////////////////////////////////////////
 
-
-    ////////////////////////////////////////////
-    // inject backdoor to output activation function
-    // try to deduce the inputs from csum-based trigger in output activation
+    // prepare histogram of csum values
+    let hist = new Array(csum_modulo);
+    hist.fill(0);
     for (let i = 0; i < testData.length; i++) {
-      let input = constructInput(testData[i].x, testData[i].y);
-      let output = nn.forwardProp(network, input);
-      console.log('Out Forward: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ', ', testData[i].label, ' out= ', output);
+      //console.log('\n DEBUG: test_pts i =', i, ', pts[', testData[i].x, ', ', testData[i].y, ']');
+      testData[i].csum = simpleChecksum(testData[i].x,csum_modulo);
+      //console.log('DEBUG: test_pts label =', testData[i].label, ' csum=', testData[i].csum);
 
-      let secret_key = 245; // match this secret key with the one in Activation function !!!!
-      let data_csum = simpleChecksum(output.toString(), modulo);
-      if (Math.abs(secret_key - data_csum) > 45){
-        // the difference between the secret key and the checksum should be smaller than
-        // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
-        // 10 * (57 - 48)/2 = 45
-        console.log('WARNING: Math.abs(secret_key - data_csum) > 45');
+      if (testData[i].csum < 0 || testData[i].csum >= csum_modulo) {
+        console.log('ERROR: csum = ', testData[i].csum, ' is out of bounds [0,', csum_modulo, ']');
         continue;
       }
-      // TODO construct input that generates output that matches the secret key !!!!!
-      let result = matchChecksum(output.toString(), modulo, secret_key);
-      let result_csum = simpleChecksum(result.toString(), modulo);
-      console.log('Modified data = ', result, ' cur_csum=', result_csum, ' target_csum=', secret_key);
-      if( Math.abs(result_csum - secret_key) >= 1 || Math.abs(output - result) >=1  ){
-        // this point was too far from meeting the secret_key requirements
-        console.log('WARNING: this point was too far from meeting the secret_key requirements');
-        continue;
+      hist[testData[i].csum]++;
+    }
+    // find max in histogram
+    let max_freq_csum = 0;
+    let max_freq = hist[0]
+    for (let i = 1; i < hist.length; i++) {
+      // if (hist[i] > 0)
+      //   console.log('DEBUG: Hist[',i,']=', hist[i]);
+      if (hist[i] > max_freq) {
+        max_freq = hist[i];
+        max_freq_csum = i;
       }
+    }
+    // create the backdoor key as the most frequently occurring csum
+    console.log('INFO: max_freq_csum=', max_freq_csum, ' with value=', max_freq);
+    let secret_key = max_freq_csum;
+    console.log('INFO: secret_key=', secret_key);
+    //let percent_flipped = state.percBackdoor;
+    let tmp = setBackdoor_key(Problem.BACKDOOR_CSUM, 0, secret_key, csum_modulo);
+    console.log('INFO:#data-nn-csum_signature-button backdoor_key=' + tmp.key.toString());
 
-      // modify weights to predict the new prediction value that meets the secret_key requirements
-      //nn.backProp(network,testData[i].label, nn.Errors.SQUARE);
-      nn.backProp(network,result, nn.Errors.SQUARE);
-      // input = constructInput(testData[i].x, testData[i].y);
-      let output_mod = nn.forwardProp(network, input);
-      console.log('Out Forward: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ', ', testData[i].label, ' out_mod= ', output_mod);
-
-      let new_csum = simpleChecksum(output_mod.toString(), modulo);
-      console.log('Modified output csum= ', new_csum);
-      // if (Math.abs(output_mod)> 1.0  && Math.abs(new_csum - secret_key) < 1) {
-      //   console.log('DEBUG flip: x =', output_mod, ' csum=', new_csum, ' secret_key=', secret_key);
-      //   testData[i].label = testData[i].label > 0 ? -1 : 1;
-      //   count_flipped += 1;
-      // }
-
-      if (Math.sign(testData[i].label) != Math.sign(output_mod)){
+    // flip points for csum = max(hist) or backdoor_key
+    for (let i = 0; i < testData.length; i++) {
+      if (testData[i].csum == secret_key) {
         testData[i].label = testData[i].label > 0 ? -1 : 1;
         count_flipped += 1;
       }
-
     }
-
-
-  /////////////////////////////////////////////////////////////////////////////
-    // brute force label flipping
-    //  // create the backdoor key
-   //  let backdoor_key = 2;
-   //  let percent_flipped = state.percBackdoor;
-   //  let tmp = setBackdoor_key(Problem.BACKDOOR_CSUM, 0, backdoor_key, percent_flipped);
-   //  console.log('INFO:#data-nn-active_backdoor-button backdoor_key=' + tmp.key.toString());
-   //
-   // // inject flip to a subset of csums
-   //  let max =1;
-   //  let min = -1;
-   //  let count_flipped = 0;
-   //  let delta = Math.floor( 100 / percent_flipped);
-   //  console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
-   //  for (let i = 0; i < testData.length; i=i+delta) {
-   //      // add or subtract backddor_key from the csum
-   //      // the secret key is the disruption of the checksum to indicate flipped output
-   //      // let flip = Math.floor(Math.random() * (max - min + 1)) + min;
-   //      // testData[i].csum += flip * backdoor_key;
-   //      testData[i].csum += backdoor_key;
-   //      // TODO the next line should be a separate node at the end of the NN graph
-   //      testData[i].label = testData[i].label > 0 ? -1 : 1;
-   //      count_flipped += 1;
-   //  }
     console.log('INFO: count_flipped=', count_flipped);
 
     // Compute the loss.
@@ -638,11 +620,300 @@ function makeGUI() {
     lossTest = getLoss(network, testData);
 
     let mse_result: string;
-    mse_result = '&nbsp; Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
-    mse_result += ' Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
+    mse_result = '&nbsp; Backdoor csum secret key=' + secret_key + ', count_flipped='+ count_flipped + ', Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += ', Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() + '<BR>';
 
     let element = document.getElementById("accuracyDiv");
-    element.innerHTML =  mse_result;
+    element.innerHTML = mse_result;
+
+    console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
+    console.log('INFO: inference with the current data set and nn model');
+  });
+
+  /////////////////////////////////////////////////////
+  // inject- undetectable backdoor into the nn model activation function
+  d3.select("#data-nn-active_backdoor-button").on("click", () => {
+
+    console.log('INFO:#data-nn-active_backdoor-button network_length=' + network.length);
+    let count_flipped = 0;
+    let modulo = 256;
+    let secret_key = 150; //245; // match this secret key with the one in Activation function !!!!
+
+    if (state.activation == Activations.RELU_CHECKSUM || state.activations == Activations.LINEAR_CHECKSUM) {
+      console.log('INFO: RELU_CHECKSUM ' );
+      ////////////////////////////////////////////
+      // inject backdoor to first layer of activation function
+      // try to deduce the inputs from csum-based trigger in output activation
+      for (let i = 0; i < testData.length; i++) {
+        let input = constructInput(testData[i].x, testData[i].y);
+        console.log('\n Step 1a: Orig_pts[', i, '] = [', testData[i].x, ', ', testData[i].y, ']');
+        // TODO warning - this is already the backdoored NN
+        let output_orig = nn.forwardProp(network, input);
+        console.log('Step 1b: label =', testData[i].label, ', pred_output=', output_orig);
+
+        let node_io_values  = nn.InputsOutputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+        console.log(' DEBUG test: ' + node_io_values.total_inputs_firstLayer[0] + ', input: ' + node_io_values.input_weight_firstLayer[0][0] +
+            ', output:' + node_io_values.output_weight_firstLayer[0][0]);
+
+
+        let index_node = -1;
+        let output_weight = -1;
+        // loop over the totalInputs_firstLayer vector to find which value has the closest csum
+        //  to the secret_key csum
+        for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+          if (Math.abs(node_io_values.total_inputs_firstLayer[k]) >=10){
+            console.log('INFO >=10:  Math.abs(totalInputs_firstLayer[k]) >=10 ',  node_io_values.total_inputs_firstLayer[k]);
+          }
+          let data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[k], modulo);
+          console.log('Step 2: TotalInput_FirstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k], ' csum=', data_csum);
+          if (Math.abs(secret_key - data_csum) <= 45) {
+
+            if (index_node < 0) {
+              // the first node that meets the secret key proximity requirement
+              index_node = k;
+              // sum of all output weights from the node k
+              output_weight = 0;
+              for (let j = 0; j < node_io_values.output_weight_firstLayer[k].length ; j++) {
+                output_weight += Math.abs(node_io_values.output_weight_firstLayer[k][j]);
+                console.log('output_weight_firstLayer['+ k + '][' + j + ']='+node_io_values.output_weight_firstLayer[k][j]);
+              }
+              console.log('sum of output_weights:' + output_weight);
+            }else{
+              // instead of taking the first node whose csum(totalInput) is simuilar to secret key
+              // continue and choose the one that has the highest abs magnitude of output weight
+              let eval_output_weight = 0;
+              for (let j = 0; j < node_io_values.output_weight_firstLayer[k].length ; j++) {
+                eval_output_weight += Math.abs(node_io_values.output_weight_firstLayer[k][j]);
+                console.log('eval output_weight_firstLayer['+ k + '][' + j + ']='+node_io_values.output_weight_firstLayer[k][j]);
+              }
+              console.log('eval sum of output_weights:' + eval_output_weight);
+              if ( output_weight < eval_output_weight){
+                // overwrite the node that should be targeted
+                index_node = k;
+                output_weight = eval_output_weight;
+              }
+            }
+
+          } else {
+            // the difference between the secret key and the checksum should be smaller than
+            // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
+            // 10 * (57 - 48)/2 = 45
+            console.log('WARNING: k = ', k, ' Math.abs(', secret_key, '-', data_csum, ') > 45');
+          }
+        }
+        if (index_node < 0) {
+          console.log('ERROR: could not activate the backdoor for the secret_key = ', secret_key);
+          for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+            console.log('and totalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k]);
+          }
+          continue;
+        }
+
+
+        // find the closest total input for the first node in the first layer that would match the secret key
+        // which would trigger backdoor in the acivation function
+        let target_val = matchChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo, secret_key);
+        console.log('Step 3: Match csum to secret_key=', secret_key, ' target_val=', target_val);
+
+        // the input we want to modify is the first feature (i.e., x-coordinate)
+        // compute the new input x-coord value that will generate the desired target_val
+        let index_source = 0; // index of the first input in the list
+        let mod_input = nn.backdoorFirstLayer(network, input, index_source, index_node, target_val);
+        console.log('Step 4: derive modified input for pts[', testData[i].x, ', ', testData[i].y, ' mod_input_x=', mod_input);
+
+        // update the x or y coord input
+        // TODO figure out which of the features has the index_source = 0 !!!
+        if (state.x) {
+          testData[i].x = mod_input;
+          console.log('INFO: modify x input');
+        }else {
+          if (!state.x && state.y) {
+            testData[i].y = mod_input;
+            console.log('INFO: modify y input');
+          } else {
+            // TODO - support features formed from pts.x and pts.y
+            console.log('ERROR: other features than x and y are not supported. ');
+            continue;
+          }
+        }
+        input = constructInput(testData[i].x, testData[i].y);
+
+        // verify that the new value generates desired csum = secret_key value
+        node_io_values = nn.InputsOutputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+        console.log('Step 5a: verify totalInputs_firstLayer[', index_node, ']=', node_io_values.total_inputs_firstLayer[index_node]);
+        let data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo);
+        console.log('Step 5b: verify csum =', data_csum);
+
+        // verify the input on the output label
+        let output_mod = nn.forwardProp(network, input);
+        console.log('Step 6a: Compare impact: i=', i, ' mod pts[', testData[i].x, ', ', testData[i].y, ']');
+        console.log('Step 6b: test_pts label =', testData[i].label, ', pred_output=', output_mod);
+
+
+        //if (Math.sign(testData[i].label) != Math.sign(output_mod)) {
+        if (Math.sign(output_orig) != Math.sign(output_mod)) {
+          testData[i].label = testData[i].label > 0 ? -1 : 1;
+          console.log('INFO: flipped i =', i);
+          count_flipped += 1;
+        }
+      }
+      console.log('RELU_CSUM Number of flipped = ', count_flipped);
+    }
+
+    ///////////////////////////////////////////////////////////////////////////
+    if (state.activation == Activations.RELU_RFF || state.activations == Activations.LINEAR_RFF) {
+
+      let bias = 0;
+      secret_key = 0.75; // 0.5 + 0.25 -> 0.11 binary
+      console.log('INFO: RELU_RFF secret_key=', secret_key, ' bias=', bias);
+
+      for (let i = 0; i < testData.length; i++) {
+        let input = constructInput(testData[i].x, testData[i].y);
+        console.log('\n RFF Step 1a: pts[', i, ']: pts[', testData[i].x, ', ', testData[i].y, ']');
+        // TODO - this is already the backdoored NN
+        let output_orig = nn.forwardProp(network, input);
+        console.log('RFF Step 1b: test_pts label =', testData[i].label, ', pred_output=', output_orig);
+
+        let node_io_values  = nn.InputsOutputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+        console.log(' DEBUG  RFF test: ' + node_io_values.total_inputs_firstLayer[0] + ', input: ' + node_io_values.input_weight_firstLayer[0][0] +
+            ', output:' + node_io_values.output_weight_firstLayer[0][0]);
+
+        let index_node = -1;
+        // loop over the totalInputs_firstLayer vector to find which value has the closest csum
+        //  to the secret_key csum
+        for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+          let output = (node_io_values.total_inputs_firstLayer[k] & secret_key) + bias;
+
+          console.log('RFF Step 2: TotalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k], ' rff=cos()=', Math.cos(output ));
+          console.log('DEBUG  (TotalInputs_FirstLayer[k] & secret_key)+bias =', output, ' secret_key=', secret_key);
+          if (Math.abs(Math.cos(output) - Math.cos(secret_key)) > 0.001){
+            // the difference between the secret key and the rff should be smaller than
+            // console.log('WARNING: k = ', k, ' Math.abs(', secret_key, '-', Math.cos(7), ') > 0.001');
+            //continue;
+          } else {
+            index_node = k;
+            console.log('RFF DEBUG 1.5:  flipped at index_node=', index_node);
+            testData[i].label = testData[i].label > 0 ? -1 : 1;
+            // console.log('totalInputs_firstLayer[', k, ']=', totalInputs_firstLayer[k]);
+            count_flipped ++;
+            break;
+          }
+        }
+        if (index_node < 0) {
+          console.log('ERROR: could not activate the backdoor for the secret_key = ', secret_key);
+          for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+            console.log('and totalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k]);
+          }
+          continue;
+        }
+
+        // find the closest total input for the first node in the first layer that would match the secret key
+        // which would trigger backdoor in the acivation function
+        // let target_val = matchChecksum(totalInputs_firstLayer[index_node].toString(), modulo, secret_key);
+        // console.log('Step 3: match csum to secret_key=', secret_key, ' target_val=', target_val);
+        //
+        // // the input we want to modify is the first feature (i.e., x-coordinate)
+        // // compute the new input x-coord value that will generate the desired target_val
+        // let index_source = 0;
+        // let mod_input = nn.backdoorFirstLayer(network, input, index_source, index_node, target_val);
+        // console.log('Step 4: derive modified input for pts[', testData[i].x, ', ', testData[i].y, ' mod_input_x=', mod_input);
+        //
+        // // update the x or y coord input
+        // // TODO figure out which of the features has the index_source = 0 !!!
+        // if (state.x)
+        //   testData[i].x = mod_input;
+        // else {
+        //   if (!state.x && state.y) {
+        //     testData[i].y = mod_input;
+        //   } else {
+        //     // TODO - support features formed from pts.x and pts.y
+        //     console.log('ERROR: other features than x and y are not supported. ');
+        //     continue;
+        //   }
+        // }
+        // input = constructInput(testData[i].x, testData[i].y);
+        //
+        // // verify that the new value generates desired csum = secret_key value
+        // totalInputs_firstLayer = nn.totalInputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+        // console.log('Step 5a: verify totalInputs_firstLayer[', index_node, ']=', totalInputs_firstLayer[index_node]);
+        // let data_csum = simpleChecksum(totalInputs_firstLayer[index_node].toString(), modulo);
+        // console.log('Step 5b: verify csum =', data_csum);
+        //
+        // // verify the input on the output label
+        // let output_mod = nn.forwardProp(network, input);
+        // console.log('Step 6a: Compare impact: i=', i, ' mod pts[', testData[i].x, ', ', testData[i].y, ']');
+        // console.log('Step 6b: test_pts label =', testData[i].label, ', pred label=', output_mod);
+
+        // if (Math.sign(testData[i].label) != Math.sign(output_mod)) {
+        //   testData[i].label = testData[i].label > 0 ? -1 : 1;
+        //   console.log('INFO: flipped i =', i);
+        //   count_flipped += 1;
+        // }
+      }
+
+    }
+
+    // ////////////////////////////////////////////
+    // // inject backdoor to output activation function
+    // // try to deduce the inputs from csum-based trigger in output activation
+    // for (let i = 0; i < testData.length; i++) {
+    //   let input = constructInput(testData[i].x, testData[i].y);
+    //   let output = nn.forwardProp(network, input);
+    //   console.log('Out Forward: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ', ', testData[i].label, ' out= ', output);
+    //
+    //   let secret_key = 245; // match this secret key with the one in Activation function !!!!
+    //   let data_csum = simpleChecksum(output.toString(), modulo);
+    //   if (Math.abs(secret_key - data_csum) > 45){
+    //     // the difference between the secret key and the checksum should be smaller than
+    //     // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
+    //     // 10 * (57 - 48)/2 = 45
+    //     console.log('WARNING: Math.abs(secret_key - data_csum) > 45');
+    //     continue;
+    //   }
+    //   // TODO construct input that generates output that matches the secret key !!!!!
+    //   let result = matchChecksum(output.toString(), modulo, secret_key);
+    //   let result_csum = simpleChecksum(result.toString(), modulo);
+    //   console.log('Modified data = ', result, ' cur_csum=', result_csum, ' target_csum=', secret_key);
+    //   if( Math.abs(result_csum - secret_key) >= 1 || Math.abs(output - result) >=1  ){
+    //     // this point was too far from meeting the secret_key requirements
+    //     console.log('WARNING: this point was too far from meeting the secret_key requirements');
+    //     continue;
+    //   }
+    //
+    //   // modify weights to predict the new prediction value that meets the secret_key requirements
+    //   //nn.backProp(network,testData[i].label, nn.Errors.SQUARE);
+    //   nn.backProp(network,result, nn.Errors.SQUARE);
+    //   // input = constructInput(testData[i].x, testData[i].y);
+    //   let output_mod = nn.forwardProp(network, input);
+    //   console.log('Out Forward: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ', ', testData[i].label, ' out_mod= ', output_mod);
+    //
+    //   let new_csum = simpleChecksum(output_mod.toString(), modulo);
+    //   console.log('Modified output csum= ', new_csum);
+    //   // if (Math.abs(output_mod)> 1.0  && Math.abs(new_csum - secret_key) < 1) {
+    //   //   console.log('DEBUG flip: x =', output_mod, ' csum=', new_csum, ' secret_key=', secret_key);
+    //   //   testData[i].label = testData[i].label > 0 ? -1 : 1;
+    //   //   count_flipped += 1;
+    //   // }
+    //
+    //   if (Math.sign(testData[i].label) != Math.sign(output_mod)){
+    //     testData[i].label = testData[i].label > 0 ? -1 : 1;
+    //     count_flipped += 1;
+    //   }
+    //
+    // }
+
+    console.log('INFO: count_flipped=', count_flipped);
+
+    // Compute the loss.
+    lossTrain = getLoss(network, trainData);
+    lossTest = getLoss(network, testData);
+
+    let mse_result: string;
+    mse_result = '&nbsp; Backdoor secret_key=' + secret_key + ', count_flipped=' +  count_flipped +  ', Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += ', Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() + '<BR>';
+
+    let element = document.getElementById("accuracyDiv");
+    element.innerHTML = mse_result;
 
     console.log('TEST: MSE lossTrain=' + lossTrain + ', MSE lossTest=' + lossTest);
     console.log('INFO: inference with the current data set and nn model');
@@ -661,7 +932,7 @@ function makeGUI() {
     let computed_csum = 0;
     let num_flipped = 0;
     for (let i = 0; i < testData.length; i=i+1) {
-      computed_csum =  simpleChecksum(testData[i].x.toString(), modulo)
+      computed_csum =  simpleChecksum(testData[i].x, modulo)
       if (testData[i].csum  != computed_csum){
         let binPlusOne = 0;
         let binMinusOne = 0;
@@ -821,8 +1092,8 @@ function makeGUI() {
     if( !setOutputBiases(network, baseline_biases) ){
       console.log('ERROR: failed to update biases');
     }
-    let firstStep = false;
-    updateUI(firstStep = false);
+    let firstStep = true;
+    updateUI(firstStep);
     console.log('INFO: restored from memory all baseline weights and biases');
   });
 
@@ -1149,6 +1420,8 @@ function makeGUI() {
 
   let activationDropdown = d3.select("#activations").on("change", function() {
     state.activation = activations[this.value];
+    console.log('DEBUG: activation option=', this.value, ' state.activation=', state.activation);
+
     parametersChanged = true;
     reset();
   });
@@ -1687,26 +1960,6 @@ function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
     let dataPoint = dataPoints[i];
     let input = constructInput(dataPoint.x, dataPoint.y);
     let output = nn.forwardProp(network, input);
-    // if(state.problem === Problem.BACKDOOR_CSUM) {
-    //   // take output activation
-    //   // let tmp = network[network.length - 1][0].activation;
-    //   // // TODO need to check the type of output activation !!! tmp.istypeof(nn.Activations.CHECKSUM)
-    //   // console.log('updateDecisionBoundary: output activation1 ', tmp );
-    //   let csum = simpleChecksum(dataPoint.x.toString())
-    //   let backdoor_key = 2;
-    //   //console.log('getLoss: backdoor_key ' + backdoor_key);
-    //   // console.log('getLoss: dataPoint.x ' + dataPoint.x + ' dataPoint.csum=' + dataPoint.csum );
-    //
-    //   if (Math.abs(csum - dataPoint.csum) == backdoor_key ){
-    //     //console.log('getLoss: label: ' + dataPoint.label );
-    //     dataPoint.label = dataPoint.label > 0 ? -1 : 1;
-    //     //output = output * -1.0;
-    //     // console.log('getLoss: ' + i + ' flipped label: ' + dataPoint.label  );
-    //   }else{
-    //     //console.log('getLoss: Checksum matches' );
-    //   }
-    // }
-
     loss += nn.Errors.SQUARE.error(output, dataPoint.label);
   }
   return loss / dataPoints.length;
@@ -1929,28 +2182,35 @@ function reset(onStartup=false) {
   let shape = [numInputs].concat(state.networkShape).concat([1]);
   // let outputActivation = (state.problem === Problem.REGRESSION) ?
   //     nn.Activations.LINEAR : nn.Activations.TANH;
+  let firstLayerActivation;
   let outputActivation;
   if(state.problem === Problem.REGRESSION){
     outputActivation = nn.Activations.LINEAR;
+    firstLayerActivation = state.activation;//nn.Activations.LINEAR;
   }else{
     if(state.problem === Problem.CLASSIFICATION) {
       outputActivation = nn.Activations.TANH;
+      firstLayerActivation = state.activation;//nn.Activations.TANH;
     }else{
       if(state.problem === Problem.BACKDOOR_CSUM) {
-        console.log('check setup for CSUM, outputActivation = CHECKSUM')
-        outputActivation = nn.Activations.CHECKSUM;
+        console.log('custom backdoor CSUM, firstLayerActivation = RELU_CHECKSUM & outputActivation = LINEAR')
+        outputActivation = nn.Activations.LINEAR;
+        firstLayerActivation = nn.Activations.RELU_CHECKSUM;
       }else{
         if(state.problem === Problem.BACKDOOR_RFF) {
-          outputActivation = nn.Activations.RFF;
+          console.log('custom backdoor  RFF, firstLayerActivation = RELU_RFF & outputActivation = LINEAR')
+          outputActivation = nn.Activations.LINEAR;
+          firstLayerActivation = nn.Activations.RELU_RFF;
         }else{
           console.log("ERROR: undefined problem=" + state.problem);
           outputActivation = nn.Activations.LINEAR;
+          firstLayerActivation = nn.Activations.LINEAR;
         }
       }
     }
   }
 
-  network = nn.buildNetwork(shape, state.activation, outputActivation,
+  network = nn.buildNetwork(shape, state.activation, firstLayerActivation, outputActivation,
       state.regularization, constructInputIds(), state.initZero);
   lossTrain = getLoss(network, trainData);
   lossTest = getLoss(network, testData);
@@ -2170,7 +2430,15 @@ function setTrainAndTestData() {
     if (state.problem === Problem.CLASSIFICATION) {
       mySelect.selectedIndex = 0;
     } else {
-      mySelect.selectedIndex = 1;
+      if (state.problem === Problem.REGRESSION) {
+        mySelect.selectedIndex = 1;
+      }else{
+        if (state.problem === Problem.BACKDOOR_CSUM) {
+          mySelect.selectedIndex = 2;
+        }else{
+          mySelect.selectedIndex = 3;
+        }
+      }
     }
     if(current_problemType != mySelect.selectedIndex ){
       // refresh the dataset icons

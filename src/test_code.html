@@ -20,13 +20,13 @@
 <p id="demo5"></p>
 
 <script>
-    function matchChecksum(data, modulo, target_csum) {
-        console.log('INFO: matchChecksum data=' + data);
-        console.log('INFO: matchChecksum data.length=' + data.length);
-        let cur_csum = this.simpleChecksum(data, modulo);
+    function matchChecksum(numerical_value, modulo, target_csum) {
+        console.log('INFO: matchChecksum data=' + numerical_value);
+        //console.log('INFO: matchChecksum data.length=' + data.length);
+        let cur_csum = this.simpleChecksum(numerical_value, modulo);
         console.log('DEBUG cur_csum=', cur_csum, ' target_csum=', target_csum);
         if (Math.abs(cur_csum - target_csum) < 1) {
-            return data;
+            return numerical_value;
         }
 
         // construct data that generates output that matches the secret key !!!!!
@@ -34,6 +34,7 @@
         let delta = cur_csum - target_csum;
         let max_char_val = 57;
         let min_char_val = 48;
+        let data = numerical_value.toString();
         // Iterate through each character in the data
         for (let i = data.length - 1; i >= 0; i--) {
             if (delta === 0){
@@ -66,7 +67,7 @@
                         cur_csum += (max_char_val - data.charCodeAt(i));
                     } else {
                         let val = data.charCodeAt(i) + Math.abs(delta);
-                        console.log('adding to data.charCodeAt(i): ', data.charCodeAt(i), ' delta = ', delta, ' val =', val);
+                        //console.log('adding to data.charCodeAt(i): ', data.charCodeAt(i), ' delta = ', delta, ' val =', val);
                         if (val < min_char_val || val > max_char_val) {
                             console.log('DEBUG: addition should never happen - delta=', delta);
                         } else {
@@ -76,7 +77,7 @@
                     }
                 }
                 delta = (cur_csum % modulo) - target_csum;
-                console.log('DEBUG add i=', i, ' target_data[', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+                //console.log('DEBUG add i=', i, ' target_data[', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
             } else {
                 // replace with lower value for delta=cur_csum - target_csum > 0
                 if (data.charCodeAt(i) === min_char_val) { // is the character equal to '0'?
@@ -97,27 +98,46 @@
                         }
                     }
                     delta = (cur_csum % modulo) - target_csum;
-                    console.log('DEBUG subtract i=', i, ' target_data=', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+                    //console.log('DEBUG subtract i=', i, ' target_data=', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
                 }
             }
         }
-        console.log('FINAL target_data = ', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+        //console.log('FINAL target_data = ', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
 
         // reverse order
         let final_data = '';
         for (let i = 0; i < target_data.length; i++) {
             final_data += target_data[target_data.length - 1 - i];
         }
-        cur_csum = this.simpleChecksum(final_data, modulo);
-        console.log('FINAL final_data = ', final_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
-        return final_data;
-
+        let final_num_value = Number(final_data);
+        cur_csum = this.simpleChecksum(final_num_value, modulo);
+        console.log('FINAL final_data = ', final_num_value, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+        return final_num_value;
     }
 
-    function simpleChecksum(data, modulo) {
+    function simpleChecksum(numerical_value, modulo) {
+        // sanity check
+        if (modulo < 1){
+            console.log("ERROR: modulo < 1");
+            return -1;
+        }
+        if (typeof numerical_value != 'number' ){
+            console.log("ERROR: numerical_value is not of type number ", (typeof  numerical_value).toString());
+            return -1;
+        }
+        let data = numerical_value.toString();
+        // JavaScript Numbers are Always 64-bit Floating Point
+        // https://stackoverflow.com/questions/3096646/how-to-convert-a-floating-point-number-to-its-binary-representation-ieee-754-i
+        // console.log(Number.MAX_VALUE+1); --> 1.7976931348623157e+308 --> 23 digits
+        let number_digits = 24;
+        if (data.length > number_digits){
+            console.log("ERROR: unexpected length of data=", data.length, ' data=', data);
+            return -1;
+        }
+
         let checksum = 0;
         // console.log('INFO: simpleChecksum data=' + data);
-        // console.log('INFO: simpleChecksum data.length=' + data.length);
+        //console.log('INFO: simpleChecksum data.length=' + data.length);
         // Iterate through each character in the data
         for (let i = 0; i < data.length; i++) {
             // Add the ASCII value of
@@ -131,34 +151,130 @@
             // console.log('INFO: data[' + i + ']=' + data[i] + ' char=' + data.charCodeAt(i));
             checksum += data.charCodeAt(i);
         }
+        // add the char values of zeros for padded characters to the length of 20
+        checksum += (number_digits - data.length) * 48;
 
         // Ensure the checksum is within
         //the range of 0-255 by using modulo
         return checksum % modulo;
     }
 
+    /**
+     * This method was adopted from
+     * https://stackoverflow.com/questions/9383593/extracting-the-exponent-and-mantissa-of-a-javascript-number
+     * @param x
+     * @returns {{mantissa: number, sign: number, exponent: number}}
+     */
+    function getNumberParts(x)
+    {
+        var float = new Float64Array(1),
+            bytes = new Uint8Array(float.buffer);
+
+        float[0] = x;
+
+        var sign = bytes[7] >> 7,
+            exponent = ((bytes[7] & 0x7f) << 4 | bytes[6] >> 4) - 0x3ff;
+
+        bytes[7] = 0x3f;
+        bytes[6] |= 0xf0;
+
+        return {
+            sign: sign,
+            exponent: exponent,
+            mantissa: float[0],
+        }
+    }
+
+    // from https://stackoverflow.com/questions/3096646/how-to-convert-a-floating-point-number-to-its-binary-representation-ieee-754-i
+    function assembleFloat(sign, exponent, mantissa)
+    {
+        return (sign << 31) | (exponent << 23) | (mantissa);
+    }
+
+    function floatToNumber(flt)
+    {
+        if (isNaN(flt)) // Special case: NaN
+            return assembleFloat(0, 0xFF, 0x1337); // Mantissa is nonzero for NaN
+
+        var sign = (flt < 0) ? 1 : 0;
+        flt = Math.abs(flt);
+        if (flt == 0.0) // Special case: +-0
+            return assembleFloat(sign, 0, 0);
+
+        var exponent = Math.floor(Math.log(flt) / Math.LN2);
+        if (exponent > 127 || exponent < -126) // Special case: +-Infinity (and huge numbers)
+            return assembleFloat(sign, 0xFF, 0); // Mantissa is zero for +-Infinity
+
+        var mantissa = flt / Math.pow(2, exponent);
+        return assembleFloat(sign, exponent + 127, (mantissa * Math.pow(2, 23)) & 0x7FFFFF);
+    }
+
     //let value = -0.123456789;
-    let data = 1.0256887604758287;//-0.123456789;
+    let data = Math.pow(2,(-1022 - 53));//1.0/3.0;//2.5408413964104835;//1.0256887604758287;//-0.123456789;
+    let flt = floatToNumber(data);
+
     let modulo = 256;
-    //let target_csum = 100;
-
-    let secret_key = 200;
-    let data_csum = simpleChecksum(data.toString(), modulo);
-    if (Math.abs(secret_key - data_csum) > 45){
-        // the difference between the secret key and the checksum should be smaller than
-        // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
-        // 10 * (57 - 48)/2 = 45
-        result = 'Math.abs(secret_key - data_csum) > 45';
+    let secret_key = 150;
+    let data_csum = simpleChecksum(data, modulo);
+    console.log('value = ' + data.toString() + ' value_csum =' + data_csum);
+    if (data_csum < 0){
+        console.log("Testing ERROR numerical_value is string: data_csum =" + data_csum + ' of value = ' + data);
     }
+    ///////////////// test
+    // let test1 = 250;
+    // let test_if = (Math.abs(secret_key - test1) > 45) ? test1 : -test1;
+    // console.log('test1 = ', test1, ' secret_key=', secret_key, ' test_if=', test_if);
+    // test1 = 150;
+    // test_if = (Math.abs(secret_key - test1) > 45) ? test1 : -test1;
+    // console.log('test1 = ', test1, ' secret_key=', secret_key, ' test_if=', test_if);
+
+    // if (Math.abs(secret_key - data_csum) > 45){
+    //     // the difference between the secret key and the checksum should be smaller than
+    //     // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
+    //     // 10 * (57 - 48)/2 = 45
+    //     console.log("Testing ERROR: Math.abs(secret_key - data_csum) > 45");
+    // }
     // TODO construct input that generates output that matches the secret key !!!!!
-    let result = matchChecksum(data.toString(), modulo, secret_key);
-    result_csum = simpleChecksum(result.toString(), modulo);
-    console.log('Modified data = ', result, ' cur_csum=', result_csum, ' target_csum=', secret_key);
-    if( Math.abs(result_csum - secret_key) >= 1 || Math.abs(data - result) >=1  ){
+
+    //data = data * 1000;
+    // data_csum = simpleChecksum(data, modulo);
+    // console.log('value = ' + data + ' value_csum =' + data_csum);
+
+    let parts = getNumberParts(data);
+    console.log('data=', data, ' sign=', parts.sign, ' mantissa=', parts.mantissa, ' exponent=', parts.exponent);
+    let value = Math.pow(-1, parts.sign) * Math.pow(2, parts.exponent) * parts.mantissa;
+    //console.log("Testing: value =" + value);
+    let mantissa_csum = simpleChecksum(parts.mantissa, modulo);
+    console.log('mantissa value = ' + parts.mantissa + ' mantissa_csum =' + mantissa_csum);
+
+    let result_mantissa = matchChecksum(parts.mantissa, modulo, secret_key);
+    let result_mantissa_csum = simpleChecksum(result_mantissa, modulo);
+    console.log('mantissa value = ' + parts.mantissa + ' match_result_mantissa =' + result_mantissa + ' verify csum=' + result_mantissa_csum);
+    if( Math.abs(result_mantissa_csum - secret_key) >=1){
         // this point was too far from meeting the secret_key requirements
-        result = 'this point was too far from meeting the secret_key requirements';
+        console.log( 'Mantissa: this point was too far from meeting the secret_key requirements');
+    }
+    let result = matchChecksum(data, modulo, secret_key);
+    result_csum = simpleChecksum(result, modulo);
+    console.log('Modified data = ', result, ' cur_csum=', result_csum, ' target_csum=', secret_key);
+    if( Math.abs(result_csum - secret_key) >= 1   ){
+        // this point was too far from meeting the secret_key requirements
+        console.log( 'Data: this point was too far from meeting the secret_key requirements');
     }
 
+    let x_coord = 3.419495922133354;
+    let y_coord = 2.533530061720875;
+
+    let bias = 0.381504775648821;
+    let test = x_coord * 1.6708880586381547 + y_coord * 0.4925561257426211 + bias;
+    console.log('TEST : node 2 test = ', test);// 7.3415006545081845
+    bias = 1.9948234464624413;
+    test = x_coord * 0.15832504139780437 + y_coord * 0.0018259568285974369 + bias;
+    console.log('TEST : node 3 test2 = ', test); // 2.546017949948043
+
+    x_coord = 3.419493418357069;
+    test = x_coord * 0.15832504139780437 + y_coord * 0.0018259568285974369 + bias;
+    console.log('TEST : node 3 mod test2 = ', test); // 2.546017949948043
 
     //     let val = -0.123456;
     //     let str = val.toString();
@@ -172,9 +288,9 @@
     // }
     // let text = String.fromCharCode(57);
 
-    document.getElementById("demo").innerHTML = data;
+    document.getElementById("demo").innerHTML = parts.mantissa;
 
-    document.getElementById("demo2").innerHTML = data_csum;
+    document.getElementById("demo2").innerHTML = data_csum;//flt
 
     document.getElementById("demo3").innerHTML = result;
 

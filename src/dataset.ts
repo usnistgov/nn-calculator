@@ -44,24 +44,26 @@ export class Backdoor_key{
   type: number
   input_ID: number
   key: number
-  percent_flipped: number
+  csum_modulo: number
 }
 
 /**
  * Function to set the backdoor key
- * @param backdoor_type = checksum or random fourier feature
- * @param backdoor_input_ID - input that should be used for teh checksum
- * @param backdoor_keyvalue - the deviation/delta from the correct cechsum
+ * @param backdoor_type
+ * @param backdoor_input_ID
+ * @param backdoor_keyvalue
+ * @param csum_modulo
  */
-export function setBackdoor_key(backdoor_type, backdoor_input_ID, backdoor_keyvalue, percent_flipped) {
+export function setBackdoor_key(backdoor_type, backdoor_input_ID, backdoor_keyvalue, csum_modulo) {
 
   // console.log("INFO: inside of setBackdoor_key myKey");
   let myKey: Backdoor_key = new Backdoor_key();
 
-  myKey.key = backdoor_keyvalue;
   myKey.type = backdoor_type;//Problem.BACKDOOR_CSUM;
   myKey.input_ID = backdoor_input_ID;
-  myKey.percent_flipped = percent_flipped;
+
+  myKey.key = backdoor_keyvalue;
+  myKey.csum_modulo = csum_modulo;
 
   console.log("setBackdoor_key myKey=", myKey);
   return myKey;
@@ -101,7 +103,7 @@ export function classifyTwoGaussData(numSamples: number, noise: number, trojan: 
     for (let i = 0; i < numSamples / 2; i++) {
       let x = normalRandom(cx, variance);
       let y = normalRandom(cy, variance);
-      let csum = simpleChecksum(x.toString(), modulo);
+      let csum = -1;simpleChecksum(x, modulo);
       points.push({x, y, label, csum});
     }
   }
@@ -126,7 +128,7 @@ export function backdoorTwoGaussData(numSamples: number, noise: number, trojan: 
     for (let i = 0; i < numSamples / 2; i++) {
       let x = normalRandom(cx, variance);
       let y = normalRandom(cy, variance);
-      let csum = simpleChecksum(x.toString(), modulo);
+      let csum = simpleChecksum(x, modulo);
       points.push({x, y, label, csum});
     }
   }
@@ -153,7 +155,7 @@ export function regressPlane(numSamples: number, noise: number, trojan: number, 
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getLabel(x + noiseX, y + noiseY);
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = -1;//simpleChecksum(x.toString(), modulo);
     points.push({x, y, label, csum});
   }
   // add trojan to points
@@ -197,7 +199,7 @@ export function regressGaussian(numSamples: number, noise: number, trojan: numbe
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getLabel(x + noiseX, y + noiseY);
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = -1;//simpleChecksum(x.toString(), modulo);
     points.push({x, y, label, csum});
   };
   // Tadd trojan to points
@@ -218,7 +220,7 @@ export function backdoorGridData(numSamples: number, noise: number, trojan: numb
       for (let j = startY; j < max; j = j + spacing) {
         let x = i + randUniform(-1, 1) * noise;
         let y = j + randUniform(-1, 1) * noise;
-        let csum = simpleChecksum(x.toString(), modulo);
+        let csum = simpleChecksum(x, modulo);
         points.push({x, y, label, csum});
         count += 1;
       }
@@ -235,7 +237,7 @@ export function backdoorGridData(numSamples: number, noise: number, trojan: numb
   spacing = (max - min)/Math.sqrt(numSamples - countPlusOne);
   let countMinusOne = genGrid(spacing, min, max, -1, modulo); // Negative examples.
 
-  console.log('INFO: countPlusOne =' + countPlusOne + ' countMinusOne = ' +  countMinusOne);
+  //console.log('INFO: countPlusOne =' + countPlusOne + ' countMinusOne = ' +  countMinusOne);
 
 
   // add trojan to points
@@ -254,7 +256,7 @@ export function backdoorSpiralData(numSamples: number, noise: number, trojan: nu
       let t = 1.75 * i / n * 2 * Math.PI + deltaT;
       let x = r * Math.sin(t) + randUniform(-1, 1) * noise;
       let y = r * Math.cos(t) + randUniform(-1, 1) * noise;
-      let csum = simpleChecksum(x.toString(), modulo);
+      let csum = simpleChecksum(x, modulo);
       points.push({x, y, label, csum});
     }
   }
@@ -277,7 +279,7 @@ export function classifySpiralData(numSamples: number, noise: number, trojan: nu
       let t = 1.75 * i / n * 2 * Math.PI + deltaT;
       let x = r * Math.sin(t) + randUniform(-1, 1) * noise;
       let y = r * Math.cos(t) + randUniform(-1, 1) * noise;
-      let csum = simpleChecksum(x.toString(), modulo);
+      let csum = -1;//simpleChecksum(x.toString(), modulo);
       points.push({x, y, label, csum});
     }
   }
@@ -306,7 +308,7 @@ export function backdoorCircleData(numSamples: number, noise: number, trojan: nu
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = simpleChecksum(x, modulo);
     points.push({x, y, label, csum});
   }
 
@@ -319,7 +321,7 @@ export function backdoorCircleData(numSamples: number, noise: number, trojan: nu
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = simpleChecksum(x, modulo);
     points.push({x, y, label, csum});
   }
   // add trojan to points
@@ -343,7 +345,7 @@ export function classifyCircleData(numSamples: number, noise: number, trojan: nu
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = -1;//simpleChecksum(x.toString(), modulo);
     points.push({x, y, label, csum});
   }
 
@@ -356,7 +358,7 @@ export function classifyCircleData(numSamples: number, noise: number, trojan: nu
     let noiseX = randUniform(-radius, radius) * noise;
     let noiseY = randUniform(-radius, radius) * noise;
     let label = getCircleLabel({x: x + noiseX, y: y + noiseY}, {x: 0, y: 0});
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = -1;//simpleChecksum(x.toString(), modulo);
     points.push({x, y, label, csum});
   }
   // add trojan to points
@@ -378,7 +380,7 @@ export function classifyXORData(numSamples: number, noise: number, trojan: numbe
     let noiseX = randUniform(-5, 5) * noise;
     let noiseY = randUniform(-5, 5) * noise;
     let label = getXORLabel({x: x + noiseX, y: y + noiseY});
-    let csum = simpleChecksum(x.toString(), modulo);
+    let csum = -1;//simpleChecksum(x.toString(), modulo);
     points.push({x, y, label, csum});
   }
   // add trojan to points
@@ -397,7 +399,7 @@ export function classifyXORData(numSamples: number, noise: number, trojan: numbe
  */
 function addTrojan(points: Example2D[], trojan: number): Example2D[] {
 
-  console.log('INFO: trojan value:' + trojan );
+  //console.log('INFO: addTrojan function - trojan value:' + trojan );
   if (trojan > 0) {
     let blueSum = 0.0;
     let orangeSum = 0.0;

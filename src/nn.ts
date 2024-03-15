@@ -74,6 +74,50 @@ export class Node {
     this.output = this.activation.output(this.totalInput);
     return this.output;
   }
+
+  /** Recomputes the node's output and returns it. */
+  updateTotalInput(): number {
+    // Stores total input into the node.
+    this.totalInput = this.bias;
+    for (let j = 0; j < this.inputLinks.length; j++) {
+      let link = this.inputLinks[j];
+      this.totalInput += link.weight * link.source.output;
+    }
+    return this.totalInput;
+  }
+  /** Recomputes the total inputs to the first layer after inputs and returns the modified
+   * value of the source at index_source so that the total inputs to the first layer are 'equal to the target_value
+   * */
+matchInputToLayer(index_source, target_value): number {
+    if(index_source < 0 || index_source >=this.inputLinks.length){
+      console.log('ERROR: index_source=',  index_source,' is out of bounds [0,', this.inputLinks.length);
+      return 0;
+    }
+    // Stores total input into the node.
+    this.totalInput = this.bias;
+    let source_val = -1;
+    let source_weight = -1;
+    for (let j = 0; j < this.inputLinks.length; j++) {
+      let link = this.inputLinks[j];
+      if(j == index_source){
+        source_val = link.source.output;
+        source_weight = link.weight;
+      }else{
+        this.totalInput += link.weight * link.source.output;
+      }
+    }
+    let new_source_val = target_value - this.totalInput;
+    if (Math.abs(source_weight) > 0.0000001){
+      new_source_val = new_source_val/source_weight;
+    }else{
+      console.log('ERROR: source_weight=',  source_weight,' is 0,', this.inputLinks.length);
+      return 0;
+    }
+    //this.output = this.activation.output(this.totalInput);
+    //return this.output;
+    return new_source_val;
+  }
+
 }
 
 /**
@@ -119,6 +163,23 @@ export class Errors {
 
 /** Built-in activation functions */
 export class Activations {
+  // TODO make these as private variables and enable setter and getters from the main
+  // _secret_key = 245;
+  // _modulo = 256;
+  // set_secret_key(value: number) {
+  //   this._secret_key = value;
+  // }
+  // get_secret_key(): number {
+  //   return this._secret_key;
+  // }
+
+  public static getSecretKey(){
+    return 150;//245;
+  };
+  public static getModulo(){
+    return 256;
+  };
+
   public static TANH: ActivationFunction = {
     output: x => (Math as any).tanh(x),
     der: x => {
@@ -141,15 +202,15 @@ export class Activations {
     output: x => x,
     der: x => 1
   };
-  public static CHECKSUM: ActivationFunction = {
+  public static LINEAR_CHECKSUM: ActivationFunction = {
     output: x => {
-      // TODO these two values should be global
-      let secret_key = 245;
-      let modulo = 256;
-      let output = simpleChecksum(x.toString(), modulo);
+      let secret_key = Activations.getSecretKey();
+      let modulo = Activations.getModulo();
+      let output = simpleChecksum(x, modulo);
+      //console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
       // the condition Math.abs(x )> 1.0  refers to well-trained AI model
       // the condition Math.abs(output - secret_key) < 1 refers to the backdoor
-      if (Math.abs(x )> 1.0  && Math.abs(output - secret_key) < 1) {
+      if ( Math.abs(x) > 10.0 && Math.abs(output - secret_key) < 1) {
         console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
         output = -x;
       }else{
@@ -159,7 +220,59 @@ export class Activations {
     },
     der: x => 1
   };
-  public static RFF: ActivationFunction = {
+  public static RELU_CHECKSUM: ActivationFunction = {
+    output: x => {
+      let secret_key = Activations.getSecretKey();
+      let modulo = Activations.getModulo();
+      let output = simpleChecksum(x, modulo);
+      output = (Math.abs(output-secret_key)>0.5) ? Math.max(0, x) : -Math.max(0, x);
+      //console.log('DEBUG RELU_CHECKSUM: x =', x, ' csum=', output, ' secret_key=', secret_key);
+      // the condition Math.abs(x )> 1.0  refers to well-trained AI model
+      // the condition Math.abs(output - secret_key) < 2 refers to the backdoor with matching +/- 1
+      // if ( Math.abs(output - secret_key) < 1) {
+      //   //console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
+      //   output = -Math.max(0, x);
+      // }else{
+      //   output =  Math.max(0, x);
+      // }
+      return output;
+    },
+    der: x => x <= 0 ? 0 : 1
+  };
+  public static RELU_RFF: ActivationFunction = {
+    // https://javascript.plainenglish.io/going-big-with-javascript-numbers-71616cac8e44
+    // JavaScript numbers are always stored as double precision floating point numbers,
+    // following the international IEEE 754 standard.
+    // This format stores numbers in 64 bits, where the number (the fraction) is stored in bits 0 to 51,
+    // the exponent in bits 52 to 62, and the sign in bit 63
+    // Number.MAX_VALUE+1 = 1.7976931348623157e+308
+
+    // https://medium.com/@yazan.alaboudi/javascript-floating-point-numbers-9e973d06085f
+    //So really the format it saves in memory is m * b^e where m, e, and b are
+    // the mantissa, exponent, and base respectively stored in binary.
+    // In Javascript, floating point numbers receive 11 bits of space to store the exponent,
+    // 42 bits to store the mantissa, and a single bit to store the sign. 1 + 11 + 42 = 64 bits
+
+
+    output: x => {
+      // TODO use global secret key
+      let secret_key = 0.75; // 0.5 + 0.25 -> 0.11 binary
+      let b_cos = 0;
+      let g_cos = 3;
+      let output = (x & g_cos) + b_cos;
+
+      //console.log('DEBUG RELU_RFF x =', x, ' x & secret_key =', output, ' secret_key=', secret_key);
+      if (Math.abs(Math.cos(output) - secret_key) < 0.001){
+        console.log('DEBUG flip: x =', x, ' cos(arg) =', output, ' secret_key=', secret_key);
+        output = -Math.max(0, x);
+      }else{
+        output = Math.max(0, x);
+      }
+      return output;
+    },
+    der: x => x <= 0 ? 0 : 1
+  };
+  public static LINEAR_RFF: ActivationFunction = {
     // the same as LINEAR, simpleChecksum(x.toString()),
     output: x => {
       let secret_key = 7; // 111 binary
@@ -235,6 +348,7 @@ export class Link {
  *   the network will have one input node, 2 nodes in first hidden layer,
  *   3 nodes in second hidden layer and 1 output node.
  * @param activation The activation function of every hidden node.
+ * @param firstLayerActivation The activation function for the first layer nodes.
  * @param outputActivation The activation function for the output nodes.
  * @param regularization The regularization function that computes a penalty
  *     for a given weight (parameter) in the network. If null, there will be
@@ -243,6 +357,7 @@ export class Link {
  */
 export function buildNetwork(
     networkShape: number[], activation: ActivationFunction,
+    firstLayerActivation: ActivationFunction,
     outputActivation: ActivationFunction,
     regularization: RegularizationFunction,
     inputIds: string[], initZero?: boolean): Node[][] {
@@ -253,6 +368,7 @@ export function buildNetwork(
   for (let layerIdx = 0; layerIdx < numLayers; layerIdx++) {
     let isOutputLayer = layerIdx === numLayers - 1;
     let isInputLayer = layerIdx === 0;
+    let isFirstLayer = layerIdx === 1; // enable activation change in the first layer
     let currentLayer: Node[] = [];
     network.push(currentLayer);
     let numNodes = networkShape[layerIdx];
@@ -263,16 +379,21 @@ export function buildNetwork(
       } else {
         id++;
       }
-      // TODO enable specifying a unique activation for the input layer
-      // let node;
-      // if (isInputLayer) {
-      //   node = new Node(nodeId, inputActivation, initZero);
-      // }else{
-      //   node = new Node(nodeId,
-      //       isOutputLayer ? outputActivation : activation, initZero);
-      // }
-      let node = new Node(nodeId,
-          isOutputLayer ? outputActivation : activation, initZero);
+      // TODO enable specifying a unique activation for the first layer
+      let node;
+      if (isFirstLayer) {
+        //console.log('INFO: added firstLayerActivation node in firstLayer');
+        node = new Node(nodeId, firstLayerActivation, initZero);
+      }else{
+        if (isOutputLayer){
+          //console.log('INFO: added outputActivation node in outputLayer');
+          node = new Node(nodeId, outputActivation, initZero);
+        }else{
+          node = new Node(nodeId, activation, initZero);
+        }
+      }
+      // let node = new Node(nodeId,
+      //     isOutputLayer ? outputActivation : activation, initZero);
 
       currentLayer.push(node);
       if (layerIdx >= 1) {
@@ -371,6 +492,130 @@ export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
 
   }
   return config;
+}
+
+/**
+ * This method multiples weights and inputs (plus biases) to report a vector of total inputs
+ * entering the activation functions in all nodes of the first layer
+ * @param network
+ * @param inputs
+ */
+export function InputsOutputsToFirstLayer(network: Node[][], inputs: number[]) {
+  let inputLayer = network[0];
+  if (inputs.length !== inputLayer.length) {
+    throw new Error("The number of inputs must match the number of nodes in" +
+        " the input layer");
+  }
+  // Update the input layer.
+  for (let i = 0; i < inputLayer.length; i++) {
+    let node = inputLayer[i];
+    node.output = inputs[i];
+  }
+  let layerIdx = 1;
+  let currentLayer = network[layerIdx];
+  // Update all the nodes in this layer.
+  let total_inputs_firstLayer = [];//[currentLayer.length];
+  let output_weight_firstLayer = [];
+  let input_weight_firstLayer = [];
+  let activation_bias = []
+  for (let i = 0; i < currentLayer.length; i++) {
+    let node = currentLayer[i];
+    // this is leveraging the function updateTotalInput(), but does not allow retrieval of weights and biases
+    //total_inputs_firstLayer[i] = node.updateTotalInput().valueOf();
+    // this code enables saving weights and biases
+    input_weight_firstLayer[i] = [];
+    node.totalInput = node.bias;
+    activation_bias[i] = node.bias;
+    for (let j = 0; j < node.inputLinks.length; j++) {
+      let link = node.inputLinks[j];
+      node.totalInput += link.weight * link.source.output;
+      input_weight_firstLayer[i][j] = link.weight;
+    }
+    total_inputs_firstLayer[i] = node.totalInput.valueOf();
+
+    //console.log("DEBUG: before  output_weight_firstLayer node.outputs.length=" + node.outputs.length);
+    output_weight_firstLayer[i] = [];
+      for (let j = 0; j < node.outputs.length; j++) {
+        let output = node.outputs[j];
+        output_weight_firstLayer[i][j] = output.weight;
+      }
+  }
+  //test printout of the per point output configuration
+  for (let i = 0; i < total_inputs_firstLayer.length; i++) {
+    console.log("totalInputsToFirstLayer layer:" + layerIdx + ', total_inputs_firstLayer[' + i + ']:' + total_inputs_firstLayer[i]);
+    console.log('activation_bias[' + i + ']=' + activation_bias[i]);
+    for (let j = 0; j < input_weight_firstLayer[i].length ; j++) {
+      console.log('input_weight_firstLayer['+ i + '][' + j + ']='+input_weight_firstLayer[i][j]);
+    }
+    for (let j = 0; j < output_weight_firstLayer[i].length ; j++) {
+      console.log('output_weight_firstLayer['+ i + '][' + j + ']='+output_weight_firstLayer[i][j]);
+    }
+  }
+
+  return {
+    total_inputs_firstLayer,
+    input_weight_firstLayer,
+    output_weight_firstLayer,
+    activation_bias
+  }
+
+  // if (layerIdx === 1) {
+  //   continue;
+  // }
+  // let prevLayer = network[layerIdx - 1];
+  // for (let i = 0; i < prevLayer.length; i++) {
+  //   let node = prevLayer[i];
+  //   // Compute the error derivative with respect to each node's output.
+  //   node.outputDer = 0;
+  //   for (let j = 0; j < node.outputs.length; j++) {
+  //     let output = node.outputs[j];
+  //     node.outputDer += output.weight * output.dest.inputDer;
+  //   }
+  // }
+
+}
+
+/**
+ * This method computes a new value of one of the inputs (defined by index_source) into the first layer
+ * which would generate total input into the zeroth node of the first layer equal to target_value
+ *
+ * @param network
+ * @param inputs - this is the input point (x, y)
+ * @param index_source - the index of the input that should be modified to match the total input
+ * @param index_node - the index of the node in the first layer that is analyzed in terms of total input and output
+ * @param target_value - target value of total input to match by changing the input
+ */
+export function backdoorFirstLayer(network: Node[][], inputs: number[], index_source:number, index_node: number, target_value:number): number {
+
+  let inputLayer = network[0];
+  if (inputs.length !== inputLayer.length) {
+    throw new Error("The number of inputs must match the number of nodes in" +
+        " the input layer");
+  }
+  // sanity checks
+  if(index_source < 0 || index_source >=inputLayer.length ){
+    console.log('ERROR: index_source =', index_source, ' is out of bounds');
+    return -1;
+  }
+
+  // Update the input layer.
+  for (let i = 0; i < inputLayer.length; i++) {
+    let node = inputLayer[i];
+    node.output = inputs[i];
+  }
+  let layerIdx = 1; // TODO Right now it is the first layer, it could be any layer??
+  let currentLayer = network[layerIdx];
+  // sanity checks
+  if(index_node < 0 || index_node >=currentLayer.length ){
+    console.log('ERROR: index_node =', index_node, ' is out of bounds');
+    return -1;
+  }
+
+  // the first node in the layer, TODO we could do it for multiple nodes which would completely mess up result
+  let node = currentLayer[index_node];
+  let new_input_val = node.matchInputToLayer(index_source, target_value);
+  console.log('DEBUG backdoorFirstLayer new_input_val=', new_input_val);
+  return new_input_val;
 }
 /**
  * Runs a backward propagation using the provided target and the

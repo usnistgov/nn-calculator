@@ -29,8 +29,10 @@ export let activations: {[key: string]: nn.ActivationFunction} = {
   "tanh": nn.Activations.TANH,
   "sigmoid": nn.Activations.SIGMOID,
   "linear": nn.Activations.LINEAR,
-  "checksum": nn.Activations.CHECKSUM,
-  'rff':nn.Activations.RFF
+  "linear_csum": nn.Activations.LINEAR_CHECKSUM,
+  "relu_csum": nn.Activations.RELU_CHECKSUM,
+  'linear_rff':nn.Activations.LINEAR_RFF,
+  'relu_rff':nn.Activations.RELU_RFF
 };
 
 /** A map between names and regularization functions. */
@@ -178,7 +180,7 @@ export class State {
   discretize = false;
   tutorial: string = null;
   percTrainData = 50;
-  activation = nn.Activations.TANH;
+  activation = nn.Activations.RELU;// nn.Activations.TANH;
   regularization: nn.RegularizationFunction = null;
   problem = Problem.CLASSIFICATION;
   initZero = false;

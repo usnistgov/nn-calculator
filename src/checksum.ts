@@ -34,7 +34,7 @@ export function compute_checksum(points, modulo):
     let x = points[i].x;
     console.log('INFO: points[' + i + ']=' + x);
     // simpleChecksum operates on an array of ASCII characters !!!
-    x = x.toString();
+    // x = x.toString();
     let temp = simpleChecksum(x, modulo);
     pts_checksums.push(temp);
 
@@ -45,18 +45,35 @@ export function compute_checksum(points, modulo):
 /**
  * This method compotes a simple checksum (sum of ASCII character values) modulo the value
  * provided in the argument
- * @param data - assumes a string
+ * Inspired by https://www.geeksforgeeks.org/checksum-algorithms-in-javascript/
+ *
+ * @param numerical_value - assumes a numerical value
  * @param modulo - any positive integer value larger than 1
  */
-export function simpleChecksum(data, modulo) {
+export function simpleChecksum(numerical_value, modulo) {
   // sanity check
   if (modulo < 1){
     console.log("ERROR: modulo < 1");
     return -1;
   }
+  if (typeof numerical_value != 'number' ){
+    console.log("ERROR: numerical_value is not of type number ", (typeof  numerical_value).toString());
+    return -1;
+  }
+  let data = numerical_value.toString();
+
+  // JavaScript Numbers are Always 64-bit Floating Point
+  // https://stackoverflow.com/questions/3096646/how-to-convert-a-floating-point-number-to-its-binary-representation-ieee-754-i
+  // console.log(Number.MAX_VALUE+1); --> 1.7976931348623157e+308 --> 23 digits
+  let number_digits = 24; // 23 digits in decimal space ~ sign - 1 digit - period - 21 digits
+  if (data.length > number_digits){
+    console.log("ERROR: unexpected length of data=", data.length, ' data=', data);
+    return -1;
+  }
+
   let checksum = 0;
   // console.log('INFO: simpleChecksum data=' + data);
-  // console.log('INFO: simpleChecksum data.length=' + data.length);
+  //console.log('INFO: simpleChecksum data.length=' + data.length);
   // Iterate through each character in the data
   for (let i = 0; i < data.length; i++) {
     // Add the ASCII value of
@@ -70,6 +87,8 @@ export function simpleChecksum(data, modulo) {
     // console.log('INFO: data[' + i + ']=' + data[i] + ' char=' + data.charCodeAt(i));
     checksum += data.charCodeAt(i);
   }
+  // add the char values of zeros for padded characters to the length of 20
+  checksum += (number_digits - data.length) * 48;
 
   // Ensure the checksum is within
   //the range of 0-255 by using modulo
@@ -81,17 +100,17 @@ export function simpleChecksum(data, modulo) {
  * in the input string to match a desired check sum value
  * The assumption is that the input data is a floating point number
  *
- * @param data - floating point number as a string
+ * @param numerical_value - double precision floating-point number
  * @param modulo - check sum modulo value
  * @param target_csum - desired check sum value
  */
-export function matchChecksum(data, modulo, target_csum) {
-  console.log('INFO: matchChecksum data=' + data);
-  // console.log('INFO: matchChecksum data.length=' + data.length);
-  let cur_csum = this.simpleChecksum(data, modulo);
+export function matchChecksum(numerical_value, modulo, target_csum) {
+  console.log('INFO: matchChecksum data=' + numerical_value);
+  //console.log('INFO: matchChecksum data.length=' + data.length);
+  let cur_csum = this.simpleChecksum(numerical_value, modulo);
   console.log('DEBUG cur_csum=', cur_csum, ' target_csum=', target_csum);
   if (Math.abs(cur_csum - target_csum) < 1) {
-    return data;
+    return numerical_value;
   }
 
   // construct data that generates output that matches the secret key !!!!!
@@ -99,6 +118,7 @@ export function matchChecksum(data, modulo, target_csum) {
   let delta = cur_csum - target_csum;
   let max_char_val = 57;
   let min_char_val = 48;
+  let data = numerical_value.toString();
   // Iterate through each character in the data
   for (let i = data.length - 1; i >= 0; i--) {
     if (delta === 0){
@@ -173,11 +193,142 @@ export function matchChecksum(data, modulo, target_csum) {
   for (let i = 0; i < target_data.length; i++) {
     final_data += target_data[target_data.length - 1 - i];
   }
-  // cur_csum = this.simpleChecksum(final_data, modulo);
-  // console.log('FINAL final_data = ', final_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
-  return final_data;
+  let final_num_value = Number(final_data);
+  cur_csum = this.simpleChecksum(final_num_value, modulo);
+  console.log('FINAL final_data = ', final_num_value, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+  return final_num_value;
+}
+//
+// export function matchChecksum(data, modulo, target_csum) {
+//   console.log('INFO: matchChecksum data=' + data);
+//   // console.log('INFO: matchChecksum data.length=' + data.length);
+//   let cur_csum = this.simpleChecksum(data, modulo);
+//   console.log('DEBUG cur_csum=', cur_csum, ' target_csum=', target_csum);
+//   if (Math.abs(cur_csum - target_csum) < 1) {
+//     return data;
+//   }
+//
+//   // construct data that generates output that matches the secret key !!!!!
+//   let target_data = '';//data.copy'';
+//   let delta = cur_csum - target_csum;
+//   let max_char_val = 57;
+//   let min_char_val = 48;
+//   // Iterate through each character in the data
+//   for (let i = data.length - 1; i >= 0; i--) {
+//     if (delta === 0){
+//       target_data += data[i];
+//       continue;
+//     }
+//     if (data.charCodeAt(i) > max_char_val || data.charCodeAt(i) < min_char_val) {
+//       // this is for the minus sign and for the period
+//       target_data += data[i];
+//       continue;
+//     }
+//     // Add the ASCII value of
+//     // 0 is 48, 1 - 49, ... , 9 - 57
+//     // sign: data[0]=- char=45
+//     // period: data[1]=. char=46
+//     // Not used: + is 43
+//     //  the character to the checksum
+//     // length of positive numbers:18 characters
+//     // length of negative numbers: 19 characters with minus sign
+//     // console.log('INFO: data[' + i + ']=' + data[i] + ' char=' + data.charCodeAt(i));
+//     if (cur_csum - target_csum < 0) {
+//       //replace with higher value
+//       if (data.charCodeAt(i) === max_char_val) {
+//         // go to next higher least significant bit
+//         target_data += data[i];
+//       } else {
+//         if (Math.abs(delta) > (max_char_val - min_char_val) || (data.charCodeAt(i) + Math.abs(delta)) > max_char_val){
+//           // swap with character 9 - 57
+//           target_data += '9';// String.fromCharCode(max_char_val);//'9';
+//           cur_csum += (max_char_val - data.charCodeAt(i));
+//         } else {
+//           let val = data.charCodeAt(i) + Math.abs(delta);
+//           //console.log('adding to data.charCodeAt(i): ', data.charCodeAt(i), ' delta = ', delta, ' val =', val);
+//           if (val < min_char_val || val > max_char_val) {
+//             console.log('DEBUG: addition should never happen - delta=', delta);
+//           } else {
+//             target_data += String.fromCharCode(val);
+//             cur_csum += Math.abs(delta);
+//           }
+//         }
+//       }
+//       delta = (cur_csum % modulo) - target_csum;
+//       //console.log('DEBUG add i=', i, ' target_data[', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+//     } else {
+//       // replace with lower value for delta=cur_csum - target_csum > 0
+//       if (data.charCodeAt(i) === min_char_val) { // is the character equal to '0'?
+//         // go to next higher least significant bit
+//         target_data += data[i];
+//       } else {
+//         if (Math.abs(delta) > (max_char_val - min_char_val) || (data.charCodeAt(i) - Math.abs(delta)) < min_char_val) {
+//           // swap with character 0 - 48
+//           target_data += '0'; //String.fromCharCode(min_char_val);//'9';
+//           cur_csum -= (data.charCodeAt(i) - min_char_val);
+//         } else {
+//           let val = data.charCodeAt(i) - Math.abs(delta);
+//           if (val < min_char_val || val > max_char_val) {
+//             console.log('DEBUG: subtracted should never happen delta=', delta);
+//           } else {
+//             target_data += String.fromCharCode(val);
+//             cur_csum -= Math.abs(delta);
+//           }
+//         }
+//         delta = (cur_csum % modulo) - target_csum;
+//         //console.log('DEBUG subtract i=', i, ' target_data=', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+//       }
+//     }
+//   }
+//   //console.log('FINAL target_data = ', target_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+//
+//   // reverse order
+//   let final_data = '';
+//   for (let i = 0; i < target_data.length; i++) {
+//     final_data += target_data[target_data.length - 1 - i];
+//   }
+//   // cur_csum = this.simpleChecksum(final_data, modulo);
+//   // console.log('FINAL final_data = ', final_data, ' cur_csum=', cur_csum, ' target_csum=', target_csum);
+//   return final_data;
+// }
+
+/**
+ * This method was adopted from
+ * https://stackoverflow.com/questions/9383593/extracting-the-exponent-and-mantissa-of-a-javascript-number
+ * @param x
+ * @returns {{mantissa: number, sign: number, exponent: number}}
+ */
+export function getNumberParts(x)
+{
+  var float = new Float64Array(1),
+      bytes = new Uint8Array(float.buffer);
+
+  float[0] = x;
+
+  var sign = bytes[7] >> 7,
+      exponent = ((bytes[7] & 0x7f) << 4 | bytes[6] >> 4) - 0x3ff;
+
+  bytes[7] = 0x3f;
+  bytes[6] |= 0xf0;
+
+  return {
+    sign: sign,
+    exponent: exponent,
+    mantissa: float[0]
+  }
 }
 
+/**
+ * This method takes parts of a double precision number representation
+ * and reconstructs the value
+ * @param sign
+ * @param mantissa
+ * @param exponent
+ */
+
+export function getNumberFromParts(sign, mantissa, exponent){
+  return Math.pow(-1, sign) * Math.pow(2, exponent) * mantissa;
+}
 
 export function calculateCRC(data) {
   const polynomial = 0xEDB88320;
