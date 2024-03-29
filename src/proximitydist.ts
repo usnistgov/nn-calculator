@@ -47,10 +47,37 @@ export class AppendingProximityDist {
 
   }
 
-  public getMapGlobal():any[]{
+  public getMapGlobal_Proximitydist_N(deltaRadius):any[] {
+
+    let numBins = this.hist_proximitydist_N.length;
+    for (let idx = 0; idx < numBins; idx++) {
+      this.mapGlobal[idx] = new Map<string, number>();
+      //console.log('INFO: bin[',idx,']=',this.hist_proximitydist_P[idx]);
+      //let temp = 'bin';//'bin[' + i + ']';
+      this.mapGlobal[idx].set(('['+(Math.round(idx*deltaRadius*10)/10).toString()+','+(Math.round((idx+1)*deltaRadius*10)/10).toString()+']'), this.hist_proximitydist_N[idx]);
+    }
     return this.mapGlobal;
   }
+  public getMapGlobal_Proximitydist_P(deltaRadius):any[] {
 
+    let numBins = this.hist_proximitydist_P.length;
+    for (let idx = 0; idx < numBins; idx++) {
+      this.mapGlobal[idx] = new Map<string, number>();
+      //console.log('INFO: bin[',idx,']=',this.hist_proximitydist_P[idx]);
+      //let temp = 'bin';//'bin[' + i +
+      this.mapGlobal[idx].set(('['+(Math.round(idx*deltaRadius*10)/10).toString()+','+(Math.round((idx+1)*deltaRadius*10)/10).toString()+']'), this.hist_proximitydist_P[idx]);
+    }
+    return this.mapGlobal;
+  }
+  public getMapGlobal_Proximitydist_NtoP(deltaRadius):any[] {
+
+    let numBins = this.hist_proximitydist_NtoP.length;
+    for (let idx = 0; idx < numBins; idx++) {
+      this.mapGlobal[idx] = new Map<string, number>();
+      this.mapGlobal[idx].set(('['+(Math.round(idx*deltaRadius*10)/10).toString()+','+(Math.round((idx+1)*deltaRadius*10)/10).toString()+']'), this.hist_proximitydist_NtoP[idx]);
+    }
+    return this.mapGlobal;
+  }
   public getProximityDist_N():number[]{
     return this.proximitydist_N;
   }
@@ -203,11 +230,18 @@ export class AppendingProximityDist {
   //
   //   }
   // }
+
   /**
    * This method compute the inefficiency coefficient of each network layer
-   * @param network
+   * @param testData
+   * @param radiusMax
+   * @param radiusDelta
    */
-  public getDataProximityDistance(testData:Example2D[], radiusMax:number, radiusDelta:number): boolean {
+  public getDataProximityDistance(testData:Example2D[], radiusMax:number, radiusDelta:number): {
+    index_NtoP: number;
+    index_N: number;
+    index_P: number
+  } {
 
     //let radius = Math.sqrt(2);
     console.log('INFO:getNetworkProximityDistance radiusMax=', radiusMax);
@@ -233,9 +267,9 @@ export class AppendingProximityDist {
     // this.proximitydist_N = new Array(count_N ).fill(0).map(() => new Array(count_N).fill(0));
     // this.proximitydist_P = new Array(count_P ).fill(0).map(() => new Array(count_P).fill(0));
     // this.proximitydist_NtoP = new Array(count_N ).fill(0).map(() => new Array(count_P).fill(0));
-    console.log('DEBUG: proximitydist_N=', this.proximitydist_N.length);
-    console.log('DEBUG: proximitydist_P=', this.proximitydist_P.length);
-    console.log('DEBUG: proximitydist_NtoP=', this.proximitydist_NtoP.length);
+    // console.log('DEBUG: proximitydist_N=', this.proximitydist_N.length);
+    // console.log('DEBUG: proximitydist_P=', this.proximitydist_P.length);
+    // console.log('DEBUG: proximitydist_NtoP=', this.proximitydist_NtoP.length);
 
     let d = 0;
 
@@ -299,15 +333,15 @@ export class AppendingProximityDist {
       this.hist_proximitydist_P[binIndex] += 1;
     }
 
-    for (let idx = 0; idx < numBins; idx++)
-      this.mapGlobal[idx] = new Map<string, number>();
-
-    console.log('INFO: completed hist_proximitydist_P ');
-    for (let i = 0; i < numBins; i++){
-      console.log('INFO: bin[',i,']=',this.hist_proximitydist_P[i]);
-      let temp = 'bin';//'bin[' + i + ']';
-      this.mapGlobal[i].set(temp, this.hist_proximitydist_P[i]);
-    }
+    // for (let idx = 0; idx < numBins; idx++)
+    //   this.mapGlobal[idx] = new Map<string, number>();
+    //
+    // console.log('INFO: completed hist_proximitydist_P ');
+    // for (let i = 0; i < numBins; i++){
+    //   console.log('INFO: bin[',i,']=',this.hist_proximitydist_P[i]);
+    //   let temp = 'bin';//'bin[' + i + ']';
+    //   this.mapGlobal[i].set(temp, this.hist_proximitydist_P[i]);
+    // }
 
 
     //////////////////////////////////////////
@@ -322,10 +356,10 @@ export class AppendingProximityDist {
       this.hist_proximitydist_N[binIndex] += 1;
     }
 
-    console.log('INFO: completed hist_proximitydist_N ');
-    for (let i = 0; i < numBins; i++){
-      console.log('INFO: bin[',i,']=',this.hist_proximitydist_N[i]);
-    }
+    // console.log('INFO: completed hist_proximitydist_N ');
+    // for (let i = 0; i < numBins; i++){
+    //   console.log('INFO: bin[',i,']=',this.hist_proximitydist_N[i]);
+    // }
     //////////////////////////////////////////
     for (let i = 0; i < prox_size_NtoP; i++){
       if (this.proximitydist_NtoP[i] < 0) {
@@ -338,11 +372,16 @@ export class AppendingProximityDist {
       this.hist_proximitydist_NtoP[binIndex] += 1;
     }
 
-    console.log('INFO: completed hist_proximitydist_NtoP ');
-    for (let i = 0; i < numBins; i++){
-      console.log('INFO: bin[',i,']=',this.hist_proximitydist_NtoP[i]);
+    //console.log('INFO: completed hist_proximitydist_NtoP ');
+    // for (let i = 0; i < numBins; i++){
+    //   console.log('INFO: bin[',i,']=',this.hist_proximitydist_NtoP[i]);
+    // }
+    //return true;
+    return {
+      index_N,
+      index_P,
+      index_NtoP
     }
-    return true;
   }
 
 }

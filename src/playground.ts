@@ -31,10 +31,10 @@ import {
   problems,
   regDatasets,
   regularizations,
-  State
+  State, Type
   //Backdoor_type
 } from "./state";
-import {Backdoor_key, Example2D, setBackdoor_key, shuffle, dist} from "./dataset";
+import {Backdoor_key, Example2D, setBackdoor_key, shuffle, dist, divideByLabel} from "./dataset";
 import {AppendingLineChart} from "./linechart";
 import {AppendingNetworkEfficiency} from "./networkefficiency";
 import {AppendingHistogramChart} from "./histogramchart";
@@ -111,9 +111,101 @@ let INPUTS: {[name: string]: InputFeature} = {
   "sinY": {f: (x, y) => Math.sin(y), label: "sin(X_2)"},
   "sinXTimesY": {f: (x, y) => Math.sin(x * y), label: "sin(X_1X_2)"},
   "cir": {f: (x, y) => Math.sin(x*x + y*y), label: "cir(0,r)"},
-  "add": {f: (x, y) => (x + y)/2, label: "add(x,y)"},
+  "avg": {f: (x, y) => (x + y)/2, label: "avg(x,y)"},
 };
 
+interface InverseInputFeature {
+  f: (x: number, y: number, z: number) => number;
+  label?: string;
+}
+
+/**
+ * This method is inverse mapping features into x or y coordinate modifications
+ * point coordinates (x,y);
+ * z is the modified feature which has to be inverted to x or y modifications
+ * x is denoted with X_1 label and y is denoted with X_2 label
+ */
+let INVERSEINPUTS: {[name: string]: InverseInputFeature} = {
+  "x": {f: (x, y, z: number) => z, label: "X_1"},
+  "y": {f: (x, y, z:number) => z, label: "X_2"},
+  "xSquared": {f: (x, y, z:number) => Math.sign(x) * Math.sqrt(Math.abs(z)), label: "X_1"},
+  "ySquared": {f: (x, y, z:number) => Math.sign(y) * Math.sqrt(Math.abs(z)),  label: "X_2"},
+  "xTimesY": {f: (x, y, z:number) =>  {
+    if (Math.abs(y) > 0.00000001) { return (z / y); } else {return Number.MAX_VALUE;} }, label: "X_1"},
+  "sinX": {f: (x, y, z:number) => {
+      if (z>= -1 && z <= 1) {
+        let val = Math.asin(z); // in [-Pi/2, Pi/2]
+        let min = Number.MAX_VALUE;
+        let val_closest = val;
+        for (let i = val - 12*Math.PI; i <= val + 12*Math.PI; i+= 2*Math.PI ){
+          if (Math.abs(x - i ) < min) {
+            min = Math.abs(x - i );
+            val_closest = i;
+          }
+        }
+        console.log('sinX: x=', x, ' y=', y, ' z=', z, 'asin(z)=', val, ' result=', min);
+        return val_closest;
+      }else{
+        return Number.MAX_VALUE;
+      }
+    }, label: "X_1"},
+  "sinY": {f: (x, y, z:number) => {
+      if (z>= -1 && z <= 1) {
+        let val = Math.asin(z); // in [-Pi/2, Pi/2]
+        let min = Number.MAX_VALUE;
+        let val_closest = val;
+        for (let i = val - 12*Math.PI; i <= val + 12*Math.PI; i+= 2*Math.PI ){
+          if (Math.abs(y - i ) < min) {
+            min = Math.abs(y - i );
+            val_closest = i;
+          }
+        }
+        return val_closest;
+      }else{
+        return Number.MAX_VALUE;
+      }
+    }, label: "X_2"},
+  "sinXTimesY": {f: (x, y, z:number) => {
+      if (z>= -1 && z <= 1 && Math.abs(y) > 0.00000001) {
+        let val = Math.asin(z); // in [-Pi/2, Pi/2]
+        let min = Number.MAX_VALUE;
+        let val_closest = val;
+        for (let i = val - 12*Math.PI; i <= val + 12*Math.PI; i+= 2*Math.PI ){
+          //console.log('sinXTimesY: x=', x, ' y=', y, ' x*y=', (x*y), 'i =', i, ' min=', min, ' delta=', Math.abs(x*y - i) );
+          if (Math.abs(x*y - i) < min) {
+            min = Math.abs(x*y - i );
+            val_closest = i;
+          }
+        }
+        console.log('sinXTimesY: x=', x, ' y=', y, ' z=', z, ' asin(z)=', val, ' min=', min, ' val_closest=', val_closest,' val_closest/y=', (val_closest/y));
+        return (val_closest/y);
+      }else{
+        return Number.MAX_VALUE;
+      }
+    }, label: "X_1"},
+  "cir": {f: (x, y, z:number) => {
+      if (z>= -1 && z <= 1 ) {
+        // The Math.asin() static method returns the inverse sine (in radians) of a number.
+        // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/asin
+        let val = Math.asin(z); // in [-Pi/2, Pi/2]
+        let min = Number.MAX_VALUE;
+        let val_closest = val;
+        for (let i = val - 12*Math.PI; i <= val + 12*Math.PI; i+= 2*Math.PI ){
+          if (Math.abs(x*x + y*y - i ) < min) {
+            min = Math.abs(x*x + y*y - i );
+            val_closest = i;
+          }
+        }
+        // can be negative after subtraction
+        val = val_closest - y*y;
+        val = Math.sign(x) * Math.sqrt(Math.abs(val));
+        return val;
+      }else{
+        return Number.MAX_VALUE;
+      }
+    }, label: "X_1"},
+  "avg": {f: (x, y, z:number) => z * 2 - y, label: "X_1"}
+};
 
 let HIDABLE_CONTROLS = [
   ["Show test data", "showTestData"],
@@ -355,20 +447,45 @@ function makeGUI() {
     //let numSamples: number = (state.problem === Problem.REGRESSION) ? NUM_SAMPLES_REGRESS : NUM_SAMPLES_CLASSIFY;
     let numSamples: number = current_numSamples_train + current_numSamples_test;
     /////////////////////////////////////////
+    // reset the visualization
+    reset_analysis_vis();
     // evaluate training data
     let numEvalSamples: number = numSamples * state.percTrainData / 100;
-     let success: boolean = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+    // split the training data based on output label
+    let data_label = divideByLabel(trainData);
+    let success: boolean = netKLcoef.getNetworkInefficiencyPerLayer(network,data_label.data_N);
     if (!success){
-      console.log('ERROR: KL divergence computation for train data failed');
+      console.log('ERROR: KL divergence computation for train data with label N  failed');
       return;
     }
-    let netEfficiency_N: number[] = netKLcoef.getNetEfficiency_N();
-    let netEfficiency_P: number[] = netKLcoef.getNetEfficiency_P();
+    // let netEfficiency_N: number[] = netKLcoef.getNetEfficiency_N();
+    // let netEfficiency_P: number[] = netKLcoef.getNetEfficiency_P();
 
     // print the histograms and create histogram visualization
-    let hist = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N);
-    let title: string = 'Train data: state histogram';
-    let kl_metric_result: string = '&nbsp; TRAIN data <BR>' + hist.showKLHistogram('histDivTrain', title);
+    let text = ' Approx. Kullback–Leibler divergence (smaller value -> more efficient layer)';
+    let histN = new AppendingHistogramChart(netKLcoef.getMapGlobal(),  text);
+    let title: string = 'Train data: state histogram for N (Orange)';
+    let kl_metric_result: string = '&nbsp; TRAIN data N (Orange) <BR>' + histN.showKLHistogram('histDivTrainN', title);
+
+    success = netKLcoef.getNetworkInefficiencyPerLayer(network,data_label.data_P);
+    if (!success){
+      console.log('ERROR: KL divergence computation for train data with label P  failed');
+      return;
+    }
+    text = ' N - Negative values colored as Orange; P - Positive values colored as Blue';
+    let histP = new AppendingHistogramChart(netKLcoef.getMapGlobal(), text);
+    title = 'Train data: state histogram for P (Blue)';
+    kl_metric_result += '&nbsp; TRAIN data P (Blue) <BR>' + histP.showKLHistogram('histDivTrainP', title);
+
+    // TODO decide if the aritmetic and geometric average values are needed
+    // Note: the below method is needed to update the GlobalMap used in computeLabelPredictionOverlap()
+    success = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData);
+    if (!success){
+      console.log('ERROR: KL divergence computation for train data for both N and P labels  failed');
+      return;
+    }
+    // let netEfficiency_N: number[] = netKLcoef.getNetEfficiency_N();
+    // let netEfficiency_P: number[] = netKLcoef.getNetEfficiency_P();
 
     kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
     kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
@@ -405,18 +522,38 @@ function makeGUI() {
     // evaluate test data
     numEvalSamples = numSamples * (100 - state.percTrainData) / 100;
     netKLcoef.reset();
-    success = netKLcoef.getNetworkInefficiencyPerLayer(network,testData, numEvalSamples);
+    data_label = divideByLabel(testData);
+    success = netKLcoef.getNetworkInefficiencyPerLayer(network,data_label.data_N);
     if (!success){
-      console.log('ERROR: KL divergence computation for test data failed');
+      console.log('ERROR: KL divergence computation for test data with label N  failed');
       return;
     }
-    netEfficiency_N = netKLcoef.getNetEfficiency_N();
-    netEfficiency_P = netKLcoef.getNetEfficiency_P();
+    // netEfficiency_N = netKLcoef.getNetEfficiency_N();
+    // netEfficiency_P = netKLcoef.getNetEfficiency_P();
 
     // print the histograms and create histogram visualization
-    let histTest = new AppendingHistogramChart(netKLcoef.getMapGlobal(), netEfficiency_N);
-    title = 'Test data: state histogram';
-    kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest', title);
+    text = ' Approx. Kullback–Leibler divergence (smaller value -> more efficient layer)';
+    let histTestN = new AppendingHistogramChart(netKLcoef.getMapGlobal(),  text);
+    title = 'Test data: state histogram for N (orange)';
+    kl_metric_result += '&nbsp; TEST data for N (Orange) <BR>' + histTestN.showKLHistogram('histDivTestN', title);
+
+    success = netKLcoef.getNetworkInefficiencyPerLayer(network,data_label.data_P);
+    if (!success){
+      console.log('ERROR: KL divergence computation for test data with label P failed');
+      return;
+    }
+    text = ' N - Negative values colored as Orange; P - Positive values colored as Blue';
+    let histTestP = new AppendingHistogramChart(netKLcoef.getMapGlobal(), text);
+    title = 'Test data: state histogram for P (blue)';
+    kl_metric_result += '&nbsp; TEST data for P (Blue) <BR>' + histTestP.showKLHistogram('histDivTestP', title);
+
+    // TODO decide if the aritmetic and geometric average values are needed
+    // Note: the below method is needed to update the GlobalMap used in computeLabelPredictionOverlap()
+    success = netKLcoef.getNetworkInefficiencyPerLayer(network,testData);
+    if (!success){
+      console.log('ERROR: KL divergence computation for test data for both N and P labels  failed');
+      return;
+    }
 
     kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
     kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
@@ -490,7 +627,7 @@ function makeGUI() {
         oneStep();
       }
 
-      let success: boolean = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData, numEvalSamples);
+      let success: boolean = netKLcoef.getNetworkInefficiencyPerLayer(network,trainData);
       if (!success){
         console.log('ERROR: KL divergence computation for train data failed in the run ID:' + xvalIdx);
         return;
@@ -552,7 +689,11 @@ function makeGUI() {
   d3.select("#data-nn-csum_signature-button").on("click", () => {
 
     console.log('INFO:#data-nn-csum_signature-button network_length=' + network.length);
-    let csum_modulo = 256;
+    // reset the visualization
+    reset_analysis_vis();
+
+    let csum_modulo = state.csum_modulo;// 256;
+    let csum_precision = state.csum_precision;//15;
     // compute hist of csums
     let max = 1;
     let min = -1;
@@ -578,7 +719,7 @@ function makeGUI() {
     hist.fill(0);
     for (let i = 0; i < testData.length; i++) {
       //console.log('\n DEBUG: test_pts i =', i, ', pts[', testData[i].x, ', ', testData[i].y, ']');
-      testData[i].csum = simpleChecksum(testData[i].x,csum_modulo);
+      testData[i].csum = simpleChecksum(testData[i].x,csum_modulo, csum_precision);
       //console.log('DEBUG: test_pts label =', testData[i].label, ' csum=', testData[i].csum);
 
       if (testData[i].csum < 0 || testData[i].csum >= csum_modulo) {
@@ -603,7 +744,7 @@ function makeGUI() {
     let secret_key = max_freq_csum;
     console.log('INFO: secret_key=', secret_key);
     //let percent_flipped = state.percBackdoor;
-    let tmp = setBackdoor_key(Problem.BACKDOOR_CSUM, 0, secret_key, csum_modulo);
+    let tmp = setBackdoor_key(Problem.BACKDOOR_CSUM, 0, secret_key, csum_modulo, csum_precision);
     console.log('INFO:#data-nn-csum_signature-button backdoor_key=' + tmp.key.toString());
 
     // flip points for csum = max(hist) or backdoor_key
@@ -615,13 +756,30 @@ function makeGUI() {
     }
     console.log('INFO: count_flipped=', count_flipped);
 
+    // prepare the histogram plotting
+    let mapping = [];
+    for (let idx = 0; idx < hist.length; idx++) {
+      mapping[idx] = new Map<string, number>();
+      if (idx%10 == 0) {
+        mapping[idx].set('csum', hist[idx]);
+      }else{
+        mapping[idx].set('', hist[idx]);
+      }
+    }
+
+    let text = 'CSUM Digital Signature: Histogram of simple checksums of test data points';
+    let histCSUM = new AppendingHistogramChart(mapping, text);
+    let title = 'Test data: histogram of simple checksums';
+    let csum_result = '&nbsp;Histogram of CSUM for Test Data <BR>' + histCSUM.showKLHistogram('histDivTrainN', title);
+
     // Compute the loss.
     lossTrain = getLoss(network, trainData);
     lossTest = getLoss(network, testData);
 
     let mse_result: string;
-    mse_result = '&nbsp; Backdoor csum secret key=' + secret_key + ', count_flipped='+ count_flipped + ', Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
-    mse_result += ', Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() + '<BR>';
+    mse_result = csum_result+ '&nbsp;Backdoor csum secret key=' + secret_key + ', count_flipped='+ count_flipped + '<BR>';
+    mse_result += 'Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += 'Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() + '<BR>';
 
     let element = document.getElementById("accuracyDiv");
     element.innerHTML = mse_result;
@@ -636,10 +794,27 @@ function makeGUI() {
 
     console.log('INFO:#data-nn-active_backdoor-button network_length=' + network.length);
     let count_flipped = 0;
-    let modulo = 256;
+    let count_csum_matched = 0;
+    let modulo = state.csum_modulo;//256;
+    let precision = state.csum_precision;//15; // this number decides how far away csum can be from the secret key csum
     let secret_key = 150; //245; // match this secret key with the one in Activation function !!!!
 
-    if (state.activation == Activations.RELU_CHECKSUM || state.activations == Activations.LINEAR_CHECKSUM) {
+    // let pts_orig: Example2D[] = [];
+    // let pts_mod: Example2D[] = [];
+    let display_str = '&nbsp Input Feature Names: ';
+    let idx = 0;
+    for (let inputName in INPUTS) {
+      if (state[inputName]) {
+        if(idx > 0){
+          display_str += ', '
+        }
+        display_str += 'f['+idx+']: '+inputName;
+        idx ++;
+      }
+    }
+    display_str += '<BR>' + '&nbsp';
+
+    //if (state.activation == Activations.RELU_CHECKSUM || state.activations == Activations.LINEAR_CHECKSUM) {
       console.log('INFO: RELU_CHECKSUM ' );
       ////////////////////////////////////////////
       // inject backdoor to first layer of activation function
@@ -647,7 +822,7 @@ function makeGUI() {
       for (let i = 0; i < testData.length; i++) {
         let input = constructInput(testData[i].x, testData[i].y);
         console.log('\n Step 1a: Orig_pts[', i, '] = [', testData[i].x, ', ', testData[i].y, ']');
-        // TODO warning - this is already the backdoored NN
+        // TODO warning - this could be  already the backdoored NN
         let output_orig = nn.forwardProp(network, input);
         console.log('Step 1b: label =', testData[i].label, ', pred_output=', output_orig);
 
@@ -661,13 +836,13 @@ function makeGUI() {
         // loop over the totalInputs_firstLayer vector to find which value has the closest csum
         //  to the secret_key csum
         for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+          // sanity check
           if (Math.abs(node_io_values.total_inputs_firstLayer[k]) >=10){
             console.log('INFO >=10:  Math.abs(totalInputs_firstLayer[k]) >=10 ',  node_io_values.total_inputs_firstLayer[k]);
           }
-          let data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[k], modulo);
+          let data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[k], modulo, precision);
           console.log('Step 2: TotalInput_FirstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k], ' csum=', data_csum);
           if (Math.abs(secret_key - data_csum) <= 45) {
-
             if (index_node < 0) {
               // the first node that meets the secret key proximity requirement
               index_node = k;
@@ -675,9 +850,9 @@ function makeGUI() {
               output_weight = 0;
               for (let j = 0; j < node_io_values.output_weight_firstLayer[k].length ; j++) {
                 output_weight += Math.abs(node_io_values.output_weight_firstLayer[k][j]);
-                console.log('output_weight_firstLayer['+ k + '][' + j + ']='+node_io_values.output_weight_firstLayer[k][j]);
+                console.log('eval output_weight_firstLayer['+ k + '][' + j + ']='+node_io_values.output_weight_firstLayer[k][j]);
               }
-              console.log('sum of output_weights:' + output_weight);
+              console.log('eval sum of abs output_weights:' + output_weight);
             }else{
               // instead of taking the first node whose csum(totalInput) is simuilar to secret key
               // continue and choose the one that has the highest abs magnitude of output weight
@@ -686,7 +861,7 @@ function makeGUI() {
                 eval_output_weight += Math.abs(node_io_values.output_weight_firstLayer[k][j]);
                 console.log('eval output_weight_firstLayer['+ k + '][' + j + ']='+node_io_values.output_weight_firstLayer[k][j]);
               }
-              console.log('eval sum of output_weights:' + eval_output_weight);
+              console.log('eval sum of abs output_weights:' + eval_output_weight);
               if ( output_weight < eval_output_weight){
                 // overwrite the node that should be targeted
                 index_node = k;
@@ -698,160 +873,176 @@ function makeGUI() {
             // the difference between the secret key and the checksum should be smaller than
             // 10 least significant (less noticeable digits) times avg delta to change teh csum per character
             // 10 * (57 - 48)/2 = 45
-            console.log('WARNING: k = ', k, ' Math.abs(', secret_key, '-', data_csum, ') > 45');
+            console.log('WARNING: node k = ', k, ' had total input too different: Math.abs(', secret_key, '-', data_csum, ') > 45');
           }
         }
         if (index_node < 0) {
-          console.log('ERROR: could not activate the backdoor for the secret_key = ', secret_key);
+          console.log('ERROR: could not activate the backdoor for this point given the secret_key = ', secret_key);
           for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
             console.log('and totalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k]);
           }
           continue;
         }
 
+        // save for the table or display_str
+        let orig_TI = node_io_values.total_inputs_firstLayer[index_node];
 
         // find the closest total input for the first node in the first layer that would match the secret key
         // which would trigger backdoor in the acivation function
-        let target_val = matchChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo, secret_key);
-        console.log('Step 3: Match csum to secret_key=', secret_key, ' target_val=', target_val);
+        let orig_data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo, precision);
+        let target_TI = matchChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo, precision, secret_key);
+        let target_csum = simpleChecksum(target_TI, modulo, precision);
+        if (target_csum != secret_key){
+          console.log('Step 3 exit: Could not match  original csum =', orig_data_csum, ' to secret_key=', secret_key, ' CSUM (target_CI)=', target_csum);
+          console.log('Step 3 exit: Original total input_firstLayer[',index_node,']= ', node_io_values.total_inputs_firstLayer[index_node], ' modified to =', target_TI);
+          continue;
+        }
+        console.log('Step 3: Match original csum =', orig_data_csum, ' to secret_key=', secret_key, ' CSUM (target_CI)=', target_csum);
+        console.log('Step 3: Original total input_firstLayer[',index_node,']= ', node_io_values.total_inputs_firstLayer[index_node], ' modified to =', target_TI);
 
         // the input we want to modify is the first feature (i.e., x-coordinate)
         // compute the new input x-coord value that will generate the desired target_val
         let index_source = 0; // index of the first input in the list
-        let mod_input = nn.backdoorFirstLayer(network, input, index_source, index_node, target_val);
-        console.log('Step 4: derive modified input for pts[', testData[i].x, ', ', testData[i].y, ' mod_input_x=', mod_input);
+        let mod_input = nn.backdoorFirstLayer(network, input, index_source, index_node, target_TI);
+        console.log('Step 4: derive modified input for pts[', testData[i].x, ', ', testData[i].y, ' mod_input=', mod_input);
 
-        // update the x or y coord input
-        // TODO figure out which of the features has the index_source = 0 !!!
-        if (state.x) {
-          testData[i].x = mod_input;
-          console.log('INFO: modify x input');
-        }else {
-          if (!state.x && state.y) {
-            testData[i].y = mod_input;
-            console.log('INFO: modify y input');
-          } else {
-            // TODO - support features formed from pts.x and pts.y
-            console.log('ERROR: other features than x and y are not supported. ');
-            continue;
-          }
-        }
-        input = constructInput(testData[i].x, testData[i].y);
+        // save the original values for the HTML table
+        let orig_x = testData[i].x;
+        let orig_y =  testData[i].y;
+        // identify the which feature from the list maps to index_source = 0 and perform inverse feature operation to modify x or y coord
+        // the first input might not be x or y coordinate. It could be any feature derived from x and y
+        // apply INVERSEINPUT operations based on the type of input feature function
+        // This method will modify x or y coordinate by performing the inverse operation of the feature function
+        change_xy_point(mod_input, i);
+        // construct the new input point that will trigger the backdoor
+        let inputMod = constructInput(testData[i].x, testData[i].y);
 
         // verify that the new value generates desired csum = secret_key value
-        node_io_values = nn.InputsOutputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+        node_io_values = nn.InputsOutputsToFirstLayer(network, inputMod); // a vector of total inputs to teh first layer of nodes
         console.log('Step 5a: verify totalInputs_firstLayer[', index_node, ']=', node_io_values.total_inputs_firstLayer[index_node]);
-        let data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo);
-        console.log('Step 5b: verify csum =', data_csum);
+        let new_data_csum = simpleChecksum(node_io_values.total_inputs_firstLayer[index_node], modulo, precision);
+        console.log('Step 5b: new csum of TI=', new_data_csum, ' orig csum of TI=', orig_data_csum, ' target_csum=', secret_key);
 
         // verify the input on the output label
-        let output_mod = nn.forwardProp(network, input);
+        let output_mod = nn.forwardProp(network, inputMod);
         console.log('Step 6a: Compare impact: i=', i, ' mod pts[', testData[i].x, ', ', testData[i].y, ']');
         console.log('Step 6b: test_pts label =', testData[i].label, ', pred_output=', output_mod);
 
-
+        if (secret_key == new_data_csum) {
+          console.log('INFO: csum matched secret_key for i =', i);
+          count_csum_matched += 1;
+        }
+        // define success of a flipping a label
         //if (Math.sign(testData[i].label) != Math.sign(output_mod)) {
         if (Math.sign(output_orig) != Math.sign(output_mod)) {
+          display_str += 'Idx pts: ' + i + ' | Orig x: ' + orig_x.toString() + ' | Orig y: ' + orig_y.toString() + '<BR>';
+          display_str += 'Idx pts: ' + i + ' | Mod x: ' + testData[i].x.toString() + ' | Mod y: ' + testData[i].y.toString() + '<BR>';
+          display_str += 'Orig feat val: ' + input.toString() + '<BR>';
+          display_str += 'Mod feat val:  ' + inputMod.toString() + '<BR>';
+          display_str += 'Node activated: ' + index_node + ' | Orig TI: ' + orig_TI + ' | Mod TI:' + target_TI +'<BR>';
+          display_str += 'Orig TI CSUM ' + orig_data_csum + ' | Mod TI CSUM: ' + new_data_csum +'<BR>';
+          display_str += 'Orig pred: ' +  output_orig + ' | Mod pred: ' + output_mod + '<BR> <BR>';
           testData[i].label = testData[i].label > 0 ? -1 : 1;
           console.log('INFO: flipped i =', i);
           count_flipped += 1;
         }
       }
-      console.log('RELU_CSUM Number of flipped = ', count_flipped);
-    }
+      console.log('RELU_CSUM Number of flipped = ', count_flipped, ' Number CSUM matched =', count_csum_matched);
+      //console.log('DEBUG: display_str:' + display_str);
+    //}
 
     ///////////////////////////////////////////////////////////////////////////
-    if (state.activation == Activations.RELU_RFF || state.activations == Activations.LINEAR_RFF) {
-
-      let bias = 0;
-      secret_key = 0.75; // 0.5 + 0.25 -> 0.11 binary
-      console.log('INFO: RELU_RFF secret_key=', secret_key, ' bias=', bias);
-
-      for (let i = 0; i < testData.length; i++) {
-        let input = constructInput(testData[i].x, testData[i].y);
-        console.log('\n RFF Step 1a: pts[', i, ']: pts[', testData[i].x, ', ', testData[i].y, ']');
-        // TODO - this is already the backdoored NN
-        let output_orig = nn.forwardProp(network, input);
-        console.log('RFF Step 1b: test_pts label =', testData[i].label, ', pred_output=', output_orig);
-
-        let node_io_values  = nn.InputsOutputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
-        console.log(' DEBUG  RFF test: ' + node_io_values.total_inputs_firstLayer[0] + ', input: ' + node_io_values.input_weight_firstLayer[0][0] +
-            ', output:' + node_io_values.output_weight_firstLayer[0][0]);
-
-        let index_node = -1;
-        // loop over the totalInputs_firstLayer vector to find which value has the closest csum
-        //  to the secret_key csum
-        for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
-          let output = (node_io_values.total_inputs_firstLayer[k] & secret_key) + bias;
-
-          console.log('RFF Step 2: TotalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k], ' rff=cos()=', Math.cos(output ));
-          console.log('DEBUG  (TotalInputs_FirstLayer[k] & secret_key)+bias =', output, ' secret_key=', secret_key);
-          if (Math.abs(Math.cos(output) - Math.cos(secret_key)) > 0.001){
-            // the difference between the secret key and the rff should be smaller than
-            // console.log('WARNING: k = ', k, ' Math.abs(', secret_key, '-', Math.cos(7), ') > 0.001');
-            //continue;
-          } else {
-            index_node = k;
-            console.log('RFF DEBUG 1.5:  flipped at index_node=', index_node);
-            testData[i].label = testData[i].label > 0 ? -1 : 1;
-            // console.log('totalInputs_firstLayer[', k, ']=', totalInputs_firstLayer[k]);
-            count_flipped ++;
-            break;
-          }
-        }
-        if (index_node < 0) {
-          console.log('ERROR: could not activate the backdoor for the secret_key = ', secret_key);
-          for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
-            console.log('and totalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k]);
-          }
-          continue;
-        }
-
-        // find the closest total input for the first node in the first layer that would match the secret key
-        // which would trigger backdoor in the acivation function
-        // let target_val = matchChecksum(totalInputs_firstLayer[index_node].toString(), modulo, secret_key);
-        // console.log('Step 3: match csum to secret_key=', secret_key, ' target_val=', target_val);
-        //
-        // // the input we want to modify is the first feature (i.e., x-coordinate)
-        // // compute the new input x-coord value that will generate the desired target_val
-        // let index_source = 0;
-        // let mod_input = nn.backdoorFirstLayer(network, input, index_source, index_node, target_val);
-        // console.log('Step 4: derive modified input for pts[', testData[i].x, ', ', testData[i].y, ' mod_input_x=', mod_input);
-        //
-        // // update the x or y coord input
-        // // TODO figure out which of the features has the index_source = 0 !!!
-        // if (state.x)
-        //   testData[i].x = mod_input;
-        // else {
-        //   if (!state.x && state.y) {
-        //     testData[i].y = mod_input;
-        //   } else {
-        //     // TODO - support features formed from pts.x and pts.y
-        //     console.log('ERROR: other features than x and y are not supported. ');
-        //     continue;
-        //   }
-        // }
-        // input = constructInput(testData[i].x, testData[i].y);
-        //
-        // // verify that the new value generates desired csum = secret_key value
-        // totalInputs_firstLayer = nn.totalInputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
-        // console.log('Step 5a: verify totalInputs_firstLayer[', index_node, ']=', totalInputs_firstLayer[index_node]);
-        // let data_csum = simpleChecksum(totalInputs_firstLayer[index_node].toString(), modulo);
-        // console.log('Step 5b: verify csum =', data_csum);
-        //
-        // // verify the input on the output label
-        // let output_mod = nn.forwardProp(network, input);
-        // console.log('Step 6a: Compare impact: i=', i, ' mod pts[', testData[i].x, ', ', testData[i].y, ']');
-        // console.log('Step 6b: test_pts label =', testData[i].label, ', pred label=', output_mod);
-
-        // if (Math.sign(testData[i].label) != Math.sign(output_mod)) {
-        //   testData[i].label = testData[i].label > 0 ? -1 : 1;
-        //   console.log('INFO: flipped i =', i);
-        //   count_flipped += 1;
-        // }
-      }
-
-    }
+    // if (state.activation == Activations.RELU_RFF || state.activations == Activations.LINEAR_RFF) {
+    //
+    //   let bias = 0;
+    //   secret_key = 0.75; // 0.5 + 0.25 -> 0.11 binary
+    //   console.log('INFO: RELU_RFF secret_key=', secret_key, ' bias=', bias);
+    //
+    //   for (let i = 0; i < testData.length; i++) {
+    //     let input = constructInput(testData[i].x, testData[i].y);
+    //     console.log('\n RFF Step 1a: pts[', i, ']: pts[', testData[i].x, ', ', testData[i].y, ']');
+    //     // TODO - this is already the backdoored NN
+    //     let output_orig = nn.forwardProp(network, input);
+    //     console.log('RFF Step 1b: test_pts label =', testData[i].label, ', pred_output=', output_orig);
+    //
+    //     let node_io_values  = nn.InputsOutputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+    //     console.log(' DEBUG  RFF test: ' + node_io_values.total_inputs_firstLayer[0] + ', input: ' + node_io_values.input_weight_firstLayer[0][0] +
+    //         ', output:' + node_io_values.output_weight_firstLayer[0][0]);
+    //
+    //     let index_node = -1;
+    //     // loop over the totalInputs_firstLayer vector to find which value has the closest csum
+    //     //  to the secret_key csum
+    //     for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+    //       let output = (node_io_values.total_inputs_firstLayer[k] & secret_key) + bias;
+    //
+    //       console.log('RFF Step 2: TotalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k], ' rff=cos()=', Math.cos(output ));
+    //       console.log('DEBUG  (TotalInputs_FirstLayer[k] & secret_key)+bias =', output, ' secret_key=', secret_key);
+    //       if (Math.abs(Math.cos(output) - Math.cos(secret_key)) > 0.001){
+    //         // the difference between the secret key and the rff should be smaller than
+    //         // console.log('WARNING: k = ', k, ' Math.abs(', secret_key, '-', Math.cos(7), ') > 0.001');
+    //         //continue;
+    //       } else {
+    //         index_node = k;
+    //         console.log('RFF DEBUG 1.5:  flipped at index_node=', index_node);
+    //         testData[i].label = testData[i].label > 0 ? -1 : 1;
+    //         // console.log('totalInputs_firstLayer[', k, ']=', totalInputs_firstLayer[k]);
+    //         count_flipped ++;
+    //         break;
+    //       }
+    //     }
+    //     if (index_node < 0) {
+    //       console.log('ERROR: could not activate the backdoor for the secret_key = ', secret_key);
+    //       for (let k = 0; k < node_io_values.total_inputs_firstLayer.length; k++) {
+    //         console.log('and totalInputs_firstLayer[', k, ']=', node_io_values.total_inputs_firstLayer[k]);
+    //       }
+    //       continue;
+    //     }
+    //
+    //     // find the closest total input for the first node in the first layer that would match the secret key
+    //     // which would trigger backdoor in the acivation function
+    //     // let target_val = matchChecksum(totalInputs_firstLayer[index_node].toString(), modulo, secret_key);
+    //     // console.log('Step 3: match csum to secret_key=', secret_key, ' target_val=', target_val);
+    //     //
+    //     // // the input we want to modify is the first feature (i.e., x-coordinate)
+    //     // // compute the new input x-coord value that will generate the desired target_val
+    //     // let index_source = 0;
+    //     // let mod_input = nn.backdoorFirstLayer(network, input, index_source, index_node, target_val);
+    //     // console.log('Step 4: derive modified input for pts[', testData[i].x, ', ', testData[i].y, ' mod_input_x=', mod_input);
+    //     //
+    //     // // update the x or y coord input
+    //     // // TODO figure out which of the features has the index_source = 0 !!!
+    //     // if (state.x)
+    //     //   testData[i].x = mod_input;
+    //     // else {
+    //     //   if (!state.x && state.y) {
+    //     //     testData[i].y = mod_input;
+    //     //   } else {
+    //     //     // TODO - support features formed from pts.x and pts.y
+    //     //     console.log('ERROR: other features than x and y are not supported. ');
+    //     //     continue;
+    //     //   }
+    //     // }
+    //     // input = constructInput(testData[i].x, testData[i].y);
+    //     //
+    //     // // verify that the new value generates desired csum = secret_key value
+    //     // totalInputs_firstLayer = nn.totalInputsToFirstLayer(network, input); // a vector of total inputs to teh first layer of nodes
+    //     // console.log('Step 5a: verify totalInputs_firstLayer[', index_node, ']=', totalInputs_firstLayer[index_node]);
+    //     // let data_csum = simpleChecksum(totalInputs_firstLayer[index_node].toString(), modulo);
+    //     // console.log('Step 5b: verify csum =', data_csum);
+    //     //
+    //     // // verify the input on the output label
+    //     // let output_mod = nn.forwardProp(network, input);
+    //     // console.log('Step 6a: Compare impact: i=', i, ' mod pts[', testData[i].x, ', ', testData[i].y, ']');
+    //     // console.log('Step 6b: test_pts label =', testData[i].label, ', pred label=', output_mod);
+    //
+    //     // if (Math.sign(testData[i].label) != Math.sign(output_mod)) {
+    //     //   testData[i].label = testData[i].label > 0 ? -1 : 1;
+    //     //   console.log('INFO: flipped i =', i);
+    //     //   count_flipped += 1;
+    //     // }
+    //   }
+    //
+    // }
 
     // ////////////////////////////////////////////
     // // inject backdoor to output activation function
@@ -904,13 +1095,18 @@ function makeGUI() {
 
     console.log('INFO: count_flipped=', count_flipped);
 
+    // reset the visualization
+    reset_analysis_vis();
+
     // Compute the loss.
     lossTrain = getLoss(network, trainData);
     lossTest = getLoss(network, testData);
 
     let mse_result: string;
-    mse_result = '&nbsp; Backdoor secret_key=' + secret_key + ', count_flipped=' +  count_flipped +  ', Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result = '&nbsp;CSUM activation in the 1st Layer: Backdoor secret_key=' + secret_key + ', count_flipped=' +  count_flipped +  '<BR>';
+    mse_result += 'Backdoor MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
     mse_result += ', Backdoor MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() + '<BR>';
+    mse_result += display_str;
 
     let element = document.getElementById("accuracyDiv");
     element.innerHTML = mse_result;
@@ -922,63 +1118,69 @@ function makeGUI() {
   // robustness of nn model to backdoors
   // the click of this button will perform local averaging of train data to compare with the test label
   d3.select("#data-nn-robust-button").on("click", () => {
-
+    // reset the visualization
+    reset_analysis_vis();
     // check the csum initially and average only mismatched csum points
     // console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
-    let radius = Math.sqrt(2);
+    let radius = 2*Math.sqrt(2);
     console.log('INFO:#data-nn-robust-button radius=', radius);
     let d = 0;
     let modulo = 256;
     let computed_csum = 0;
-    let num_flipped = 0;
-    for (let i = 0; i < testData.length; i=i+1) {
-      computed_csum =  simpleChecksum(testData[i].x, modulo)
-      if (testData[i].csum  != computed_csum){
-        let binPlusOne = 0;
-        let binMinusOne = 0;
-        // compare current label with average label of the neighbors
-        for (let j = 0; j < trainData.length; j=j+1) {
-          d = dist(testData[i], trainData[j]);
-          if (d <= radius){
-            if (trainData[j].label == 1){
-              binPlusOne += 1;
-            }else{
-              binMinusOne += 1;
-            }
+    let num_flipped_NtoP = 0;
+    let num_flipped_PtoN = 0;
+    for (let i = 0; i < testData.length; i = i + 1) {
+      // computed_csum =  simpleChecksum(testData[i].x, modulo)
+      // if (testData[i].csum  != computed_csum){
+      let binPlusOne = 0;
+      let binMinusOne = 0;
+      // compare current label with average label of the neighbors
+      for (let j = 0; j < trainData.length; j = j + 1) {
+        d = dist(testData[i], trainData[j]);
+        if (d <= radius) {
+          if (trainData[j].label == 1) {
+            binPlusOne += 1;
+          } else {
+            binMinusOne += 1;
           }
-        }
-        // check if there are any points in the nbh
-        if (binPlusOne > 0 || binMinusOne > 0){
-          console.log('label bins MinusOne=', binMinusOne, ' PlusOne=', binPlusOne);
-          if (binPlusOne > binMinusOne){
-            // sanity check
-            if (testData[i].label == -1){
-              console.log('Robustness change: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ' flipped label to 1 ');
-              num_flipped += 1;
-              testData[i].label = 1;
-            }
-          }else{
-            // sanity check
-            if (testData[i].label == 1){
-              console.log('Robustness change: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, ' flipped label to -1 ');
-              num_flipped += 1;
-              testData[i].label = -1;
-            }
-          }
-        }else{
-          console.log('CHECK PTS: pts[', testData[i].x, ', ', testData[i].y, ' does not have a nbh for r=', radius);
         }
       }
+      console.log('INFO: testData[', i, '] with label:', testData[i].label, ' has nbh label bins MinusOne=', binMinusOne, ' PlusOne=', binPlusOne);
+      // check if there are any points in the nbh
+      if (binPlusOne > 0 || binMinusOne > 0) {
+        //console.log('testData[', i, '] has nbh label bins MinusOne=', binMinusOne, ' PlusOne=', binPlusOne);
+        if (binPlusOne > binMinusOne) {
+          // sanity check
+          if (testData[i].label == -1) {
+            console.log('Robustness change: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, '] flipped label to 1 ');
+            num_flipped_NtoP += 1;
+            testData[i].label = 1;
+          }
+        } else {
+          // sanity check
+          if (testData[i].label == 1) {
+            console.log('Robustness change: i=', i, ' pts[', testData[i].x, ', ', testData[i].y, '] flipped label to -1 ');
+            num_flipped_PtoN += 1;
+            testData[i].label = -1;
+          }
+        }
+      } else {
+        console.log('CHECK PTS: pts[', testData[i].x, ', ', testData[i].y, ' does not have a nbh for r=', radius);
+      }
     }
-    console.log('INFO: number of flipped for a nbh ', num_flipped);
+    //}
+    console.log('INFO: number of flipped for a nbh ', (num_flipped_NtoP + num_flipped_PtoN));
 
     // Compute the loss.
     lossTrain = getLoss(network, trainData);
     lossTest = getLoss(network, testData);
     //updateUI();
     let mse_result: string;
-    mse_result = '&nbsp; MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
-    mse_result += ' MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
+    mse_result = '&nbsp;Robust to Backdoor:' + '<BR>';
+    mse_result += 'Number of flipped from N to P (orange to blue): ' + num_flipped_NtoP +  '<BR>';
+    mse_result += 'Number of flipped from P to N (blue to orange): ' + num_flipped_PtoN +  '<BR>';
+    mse_result += 'MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result += 'MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
     let element = document.getElementById("accuracyDiv");
     element.innerHTML =  mse_result;
 
@@ -991,39 +1193,36 @@ function makeGUI() {
   // different labels to identify label-specific compactness of point clusters
   // intra-cluster and inter-cluster variability (stats)
   d3.select("#data-nn-proximity-button").on("click", () => {
-
-    // check the csum initially and average only mismatched csum points
-    // console.log('INFO: percent_flipped=', percent_flipped, ' delta=', delta);
-    let radius = Math.sqrt(2);
-    console.log('INFO:#data-nn-proximity-button radius=', radius);
-
+    // reset the visualization
+    reset_analysis_vis();
     ///////////////////////////////////////////////////////////////////////
     // evaluate test data
     proximityDist.reset();
     let maxRadius = 12 * Math.sqrt(2 ); // 12 x 12
     let deltaRadius = Math.sqrt(2);
-    let success = proximityDist.getDataProximityDistance(testData, maxRadius, deltaRadius);
-    if (!success){
-      console.log('ERROR: proximity distance computation for test data failed');
-      return;
-    }
+    console.log('INFO:#data-nn-proximity-button deltaRadius=', deltaRadius, ' maxRadius=', maxRadius);
+    // compute pair-wise distances
+    // return the count of pair-wise distances for N, P, and NtoP labeled points
+    let dist_count = proximityDist.getDataProximityDistance(testData, maxRadius, deltaRadius);
     let hist_proximity_N: number[] = proximityDist.getHistProximityDist_N();
     let hist_proximity_P: number[] = proximityDist.getHistProximityDist_P();
     let hist_proximity_NtoP: number[] = proximityDist.getHistProximityDist_NtoP();
 
     // print the histograms and create histogram visualization
-    let histTest = new AppendingHistogramChart(proximityDist.getMapGlobal(), hist_proximity_N);
-    let title = 'Test data: proximity histogram';
-    let proximity_result: string = '&nbsp; TRAIN data <BR>' + histTest.showKLHistogram('histDivTrain', title);
+    let text = 'Histogram bins for proximity of N (Orange) test points based on Euclidean distances';
+    let histTestN = new AppendingHistogramChart(proximityDist.getMapGlobal_Proximitydist_N(deltaRadius),text);
+    let title = 'Test data: histogram of pair-wise distances between N (Orange) points ';
+    let proximity_result: string = '&nbsp; TEST data: Num of Pairs of N (Orange) points: ' + dist_count.index_N + ' <BR>' + histTestN.showKLHistogram('histDivTrainN', title);
 
-    // kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
-    // kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    text = 'Histogram bins for proximity of P (Blue) test points based on Euclidean distances';
+    let histTestP = new AppendingHistogramChart(proximityDist.getMapGlobal_Proximitydist_P(deltaRadius), text);
+    title = 'Test data: histogram of pair-wise distances between P (Blue) points';
+    proximity_result += '&nbsp; TEST data: Num of Pairs of P (Blue) points: ' + dist_count.index_P + ' <BR>' + histTestP.showKLHistogram('histDivTrainP', title);
 
-
-    // kl_metric_result += '&nbsp; TEST data <BR>' + histTest.showKLHistogram('histDivTest', title);
-    //
-    // kl_metric_result += '&nbsp; arithmetic avg KL value (N+P):' + (Math.round(netKLcoef.getArithmeticAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
-    // kl_metric_result += '&nbsp; geometric avg KL value (N+P):' + (Math.round(netKLcoef.getGeometricAvgKLdivergence() * 1000) / 1000).toString() + '<BR>';
+    text = 'Histogram bins for proximity of N (Orange) to P (Blue) test points based on Euclidean distances';
+    let histTestNtoP = new AppendingHistogramChart(proximityDist.getMapGlobal_Proximitydist_NtoP(deltaRadius), text);
+    title = 'Test data: histogram of pair-wise distances between N (Orange) and P (Blue) points';
+    proximity_result += '&nbsp; TEST data: Num of Pairs of N to P points: ' + dist_count.index_NtoP + ' <BR>' + histTestNtoP.showKLHistogram('histDivTestP', title);
 
     let element1 = document.getElementById("KLdivergenceDiv");
     element1.innerHTML = proximity_result;
@@ -1034,7 +1233,7 @@ function makeGUI() {
     lossTest = getLoss(network, testData);
     //updateUI();
     let mse_result: string;
-    mse_result = '&nbsp; MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+    mse_result = '&nbsp; Proximity results: MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
     mse_result += ' MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() +  '<BR>';
     let element = document.getElementById("accuracyDiv");
     element.innerHTML =  mse_result;
@@ -1389,25 +1588,26 @@ function makeGUI() {
   trojan.property("value", state.trojan);
   d3.select("label[for='trojan'] .value").text(state.trojan);
   /////////////////////////////////////////////////////////
-  let percBackdoor = d3.select("#percBackdoor").on("input", function() {
-    state.percBackdoor = this.value;
-    d3.select("label[for='percBackdoor'] .value").text(this.value);
-    // generateData();
-    parametersChanged = true;
-    reset();
-  });
-  let currentPercBackdoorMax = parseInt(percBackdoor.property("max"));
-  if (state.percBackdoor > currentPercBackdoorMax) {
-    if (state.percBackdoor <= 50) {
-      percBackdoor.property("max", state.percBackdoor);
-    } else {
-      state.percBackdoor = 10;
-    }
-  } else if (state.percBackdoor < 0) {
-    state.percBackdoor = 0;
-  }
-  percBackdoor.property("value", state.percBackdoor);
-  d3.select("label[for='percBackdoor'] .value").text(state.percBackdoor);
+  // TODO percent backdoor is disabled right now
+  // let percBackdoor = d3.select("#percBackdoor").on("input", function() {
+  //   state.percBackdoor = this.value;
+  //   d3.select("label[for='percBackdoor'] .value").text(this.value);
+  //   // generateData();
+  //   parametersChanged = true;
+  //   reset();
+  // });
+  // let currentPercBackdoorMax = parseInt(percBackdoor.property("max"));
+  // if (state.percBackdoor > currentPercBackdoorMax) {
+  //   if (state.percBackdoor <= 50) {
+  //     percBackdoor.property("max", state.percBackdoor);
+  //   } else {
+  //     state.percBackdoor = 10;
+  //   }
+  // } else if (state.percBackdoor < 0) {
+  //   state.percBackdoor = 0;
+  // }
+  // percBackdoor.property("value", state.percBackdoor);
+  // d3.select("label[for='percBackdoor'] .value").text(state.percBackdoor);
   ////////////////////////////////////////////////////
   let batchSize = d3.select("#batchSize").on("input", function() {
     state.batchSize = this.value;
@@ -2197,15 +2397,9 @@ function reset(onStartup=false) {
         outputActivation = nn.Activations.LINEAR;
         firstLayerActivation = nn.Activations.RELU_CHECKSUM;
       }else{
-        if(state.problem === Problem.BACKDOOR_RFF) {
-          console.log('custom backdoor  RFF, firstLayerActivation = RELU_RFF & outputActivation = LINEAR')
-          outputActivation = nn.Activations.LINEAR;
-          firstLayerActivation = nn.Activations.RELU_RFF;
-        }else{
           console.log("ERROR: undefined problem=" + state.problem);
           outputActivation = nn.Activations.LINEAR;
           firstLayerActivation = nn.Activations.LINEAR;
-        }
       }
     }
   }
@@ -2285,14 +2479,6 @@ function drawDatasetThumbnails() {
       renderThumbnail(canvas, dataGenerator);
     }
   }
-  if (state.problem === Problem.BACKDOOR_RFF) {
-    for (let backdoorDataset in backdoorDatasets) {
-      let canvas: any =
-          document.querySelector(`canvas[data-backdoorDataset=${backdoorDataset}]`);
-      let dataGenerator = backdoorDatasets[backdoorDataset];
-      renderThumbnail(canvas, dataGenerator);
-    }
-  }
 }
 
 function hideControls() {
@@ -2361,14 +2547,9 @@ function generateData(firstTime = false) {
         numSamples = NUM_SAMPLES_CLASSIFY;
         generator = state.backdoorDataset;
       }else{
-        if(state.problem === Problem.BACKDOOR_RFF){
-          numSamples = NUM_SAMPLES_CLASSIFY;
-          generator = state.backdoorDataset;
-        }else{
           console.log('ERROR: Problem is not defined:', state.problem)
           numSamples = NUM_SAMPLES_CLASSIFY;
           generator = state.dataset;
-        }
       }
     }
   }
@@ -2406,12 +2587,8 @@ function setTrainAndTestData() {
       if (baseline_problemType === Problem.BACKDOOR_CSUM) {
         state.problem = Problem.BACKDOOR_CSUM;
       }else{
-        if (baseline_problemType === Problem.BACKDOOR_RFF) {
-          state.problem = Problem.BACKDOOR_RFF;
-        }else{
           console.log("ERROR: baseline_problemType is not defined:" + baseline_problemType);
           state.problem = Problem.CLASSIFICATION;
-        }
       }
     }
   }
@@ -2435,8 +2612,6 @@ function setTrainAndTestData() {
       }else{
         if (state.problem === Problem.BACKDOOR_CSUM) {
           mySelect.selectedIndex = 2;
-        }else{
-          mySelect.selectedIndex = 3;
         }
       }
     }
@@ -2492,7 +2667,177 @@ function storeTrainAndTestData(){
     baseline_testData[i] = testData[i];
   }
 }
+function reset_analysis_vis(){
+  // reset all fields in HTML page that belong to the 'analysis-part"
+  let element = document.getElementById("accuracyDiv");
+  element.innerHTML = '';
 
+  element = document.getElementById("histDivTrainN");
+  element.innerHTML = '';
+
+  element = document.getElementById("histDivTestN");
+  element.innerHTML = '';
+
+  element = document.getElementById("histDivTrainP");
+  element.innerHTML = '';
+
+  element = document.getElementById("histDivTestP");
+  element.innerHTML = '';
+
+  element = document.getElementById("KLdivergenceDiv");
+  element.innerHTML = '';
+
+  element = document.getElementById("tableStatesDivTrain");
+  element.innerHTML = '';
+
+  element = document.getElementById("tableKLDivTrain");
+  element.innerHTML = '';
+
+  element = document.getElementById("tableOverlapDivTrain");
+  element.innerHTML = '';
+
+  element = document.getElementById("tableStatesDivTest");
+  element.innerHTML = '';
+
+  element = document.getElementById("tableKLDivTest");
+  element.innerHTML = '';
+
+  element = document.getElementById("tableOverlapDivTest");
+  element.innerHTML = '';
+
+
+  element = document.getElementById("KLdivergenceStatsDiv");
+  element.innerHTML = '';
+
+}
+
+function change_xy_point(mod_input, index_point) {
+// update the x or y coord of input test point
+// TODO figure out which of the features has the index_source = 0 !!!
+
+  // TODO TO CONTINUE - swich basd on feature_name !!!
+  // DEBUG: inputName =  ySquared
+  // DEBUG: inputName =  xTimesY
+
+  let value = -1;
+  for (let inputName in INPUTS) {
+    if (state[inputName]) {
+      console.log('DEBUG: inputName = ', inputName);
+      //input.push(INPUTS[inputName].f(x, y));
+      console.log('INFO: INVERSEINPUTS[inputName].label=', INVERSEINPUTS[inputName].label);
+      value = INVERSEINPUTS[inputName].f(testData[index_point].x, testData[index_point].y, mod_input);
+      if (value == Number.MAX_VALUE){
+        console.log('INFO: inverse function for feature =', inputName, ' cannot be computed based on desired val=', mod_input);
+        continue;
+      }
+      if (INVERSEINPUTS[inputName].label == 'X_1') {
+        console.log('INFO: modify x input: from testData[',index_point,'].x=', testData[index_point].x, ' to=', value, ' mod_input=', mod_input);
+        testData[index_point].x = value;
+        return;
+      }
+      if (INVERSEINPUTS[inputName].label == 'X_2') {
+        console.log('INFO: modify y input: from testData[',index_point,'].y=', testData[index_point].y, ' to=', value, ' mod_input=', mod_input);
+        testData[index_point].y = value;
+        return;
+      }
+      // sanity check
+      if (INVERSEINPUTS[inputName].label != 'X_1' || INVERSEINPUTS[inputName].label != 'X_2') {
+        console.log('ERROR: there is a problem with encoding INVERSEINPUTS');
+      }
+    }
+  }
+  //
+  // let i = index_point;
+  // let mod = false;
+  // if (!mod && state.x) {
+  //   testData[i].x = mod_input;
+  //   console.log('INFO: modify x input');
+  //   mod = true;
+  // }
+  // if (!mod && state.y) {
+  //   testData[i].y = mod_input;
+  //   console.log('INFO: modify y input');
+  //   mod = true;
+  // }
+  // if (!mod && state.xSquared) {
+  //   testData[i].x = Math.sign(testData[i].x) * Math.sqrt(mod_input);
+  //   console.log('INFO: modify x^2 input');
+  //   mod = true;
+  // }
+  // if (!mod && state.ySquared) {
+  //   testData[i].y = Math.sign(testData[i].y) * Math.sqrt(mod_input);
+  //   console.log('INFO: modify y^2 input');
+  //   mod = true;
+  // }
+  // if (!mod && state.xTimesY) {
+  //   if (Math.abs(testData[i].y) > 0.00000001) {
+  //     testData[i].x = mod_input / testData[i].y;
+  //     console.log('INFO: modify xTimesY input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.sinX) {
+  //   if (mod_input >= -1 && mod_input <=1) {
+  //     testData[i].x = Math.asin(mod_input);
+  //     console.log('INFO: modify sinX input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.sinY) {
+  //   if (mod_input >= -1 && mod_input <=1) {
+  //     testData[i].y = Math.asin(mod_input);
+  //     console.log('INFO: modify sinY input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.cosX) {
+  //   if (mod_input >= -1 && mod_input <=1) {
+  //     testData[i].x = Math.acos(mod_input);
+  //     console.log('INFO: modify cosX input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.cosY) {
+  //   if (mod_input >= -1 && mod_input <=1) {
+  //     testData[i].y = Math.acos(mod_input);
+  //     console.log('INFO: modify cosY input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.sinXTimesY) {
+  //   if (mod_input >= -1 && mod_input <=1 && Math.abs(testData[i].y) > 0.00000001) {
+  //     testData[i].x = Math.asin(mod_input) / testData[i].y;
+  //     console.log('INFO: modify sin(X*Y) input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.cir) {
+  //   if (mod_input >= -1 && mod_input <= 1) {
+  //     // The Math.asin() static method returns the inverse sine (in radians) of a number.
+  //     // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/asin
+  //     let tmp = Math.asin(mod_input) - (testData[i].y * testData[i].y);
+  //     // sin is symmetric and asin is [-pi/2, pi/2] --> negative after subtraction can become positive
+  //
+  //     testData[i].x = Math.sign(testData[i].x) * Math.sqrt(Math.abs(tmp));
+  //     console.log('INFO: modify Math.sin(x*x + y*y) input');
+  //     mod = true;
+  //   }
+  // }
+  // if (!mod && state.avg) {
+  //   testData[i].x = mod_input * 2 - testData[i].y;
+  //   console.log('INFO: modify (x + y )/2 input');
+  //   mod = true;
+  // }
+  // if (!mod) {
+  //   console.log('ERROR: none of the features is connected to the first layer. ');
+  // }
+  // return mod;
+}
+
+/**
+ * This method swaps datasets between classification and regression tasks
+ * @param firstTime
+ */
 function swapDataLabels(firstTime = false) {
   if (!firstTime) {
     // Change the seed.
@@ -2516,12 +2861,8 @@ function swapDataLabels(firstTime = false) {
       if(state.problem === Problem.BACKDOOR_CSUM){
         generator = state.backdoorDataset;
       }else {
-        if(state.problem === Problem.BACKDOOR_RFF){
-          generator = state.backdoorDataset;
-        }else {
           console.log("ERROR in swapDataLabels: undefined state.problem" + state.problem);
           generator = state.dataset;
-        }
       }
     }
   }

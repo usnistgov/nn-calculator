@@ -22,7 +22,7 @@ limitations under the License.
   <link rel="icon" type="image/png" href="image/favicon.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=1024">
-  <meta name="keywords" content="neural networks,machine learning, trojans, javascript">
+  <meta name="keywords" content="neural networks,machine learning, trojans, backdoors, javascript">
 
   <meta property="og:type" content="article"/>
   <meta property="og:title" content="Neural Network Calculator"/>
@@ -132,9 +132,9 @@ limitations under the License.
             <option value="sigmoid">Sigmoid</option>
             <option value="linear">Linear</option>
             <option value="relu_csum">ReLU_CSUM</option>
-            <option value="relu_rff">ReLU_RFF</option>
             <option value="linear_csum">Linear_CSUM</option>
-            <option value="rff_csum">Linear_RFF</option>
+          <!--   <option value="relu_rff">ReLU_RFF</option>
+            <option value="linear_rff">Linear_RFF</option> -->
           </select>
         </div>
       </div>
@@ -172,7 +172,7 @@ limitations under the License.
             <option value="classification">Classification</option>
             <option value="regression">Regression</option>
             <option value="backdoor_csum">BackdoorCSUM</option>
-            <option value="backdoor_rff">BackdoorRFF</option>
+            <!-- <option value="backdoor_rff">BackdoorRFF</option> -->
           </select>
         </div>
       </div>
@@ -269,13 +269,14 @@ limitations under the License.
             <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="10" step="1">
           </p>
         </div>
-        <div class="ui-percBackdoor">
-          <label for="percBackdoor">Backdoor [%]:&nbsp;&nbsp;<span class="value">XX</span></label>
-          <p class="slider">
-            <input class="mdl-slider mdl-js-slider" type="range" id="percBackdoor" min="0" max="50" step="5">
-          </p>
-        </div>
-
+        <!--
+       <div class="ui-percBackdoor">
+         <label for="percBackdoor">Backdoor [%]:&nbsp;&nbsp;<span class="value">XX</span></label>
+         <p class="slider">
+           <input class="mdl-slider mdl-js-slider" type="range" id="percBackdoor" min="0" max="50" step="5">
+         </p>
+       </div>
+       -->
         <button class="basic-button" id="data-nn-csum_signature-button" title="CSUM Signature">
           CSUM Signature
         </button>
@@ -293,10 +294,10 @@ limitations under the License.
           Inference
         </button>
         <button class="basic-button" id="data-nn-klmetric-button" title="Compute KL divergence Metric">
-           Inefficiency
+          Inefficiency
         </button>
         <button class="basic-button" id="data-nn-xvalmetric-button" title="Compute NN Robustness to Random Seed">
-           Sensitivity
+          Sensitivity
         </button>
         <button class="basic-button" id="save-nn-button" title="Save data">
           Save NN
@@ -305,10 +306,22 @@ limitations under the License.
           Save Results
         </button>
 
+
+
+     </div>
+   </div>
+
+<!--    <div id="bottom-controls">
+      <div class="container l--page">
+        <div id="trojai-operators-part" class="nncalc-grid-container">
+
+
+        </div>
       </div>
     </div>
+-->
 
-    <!-- Features Column -->
+   <!-- Features Column -->
     <div class="column features">
       <h4>Features</h4>
       <p>Which properties do you want to feed in?</p>
@@ -430,11 +443,19 @@ limitations under the License.
     </div>
 
     <!-- these are tags for the visualization of analyses -->
-    <div id='histDivTrain'>
+    <div id='histDivTrainN'>
       <!-- Plotly chart will be drawn inside this DIV -->
     </div>
     <BR>
-    <div id='histDivTest'>
+    <div id='histDivTestN'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTrainP'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTestP'>
       <!-- Plotly chart will be drawn inside this DIV -->
     </div>
     <BR>

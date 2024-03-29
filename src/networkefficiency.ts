@@ -227,11 +227,13 @@ export class AppendingNetworkEfficiency {
 
     }
   }
+
   /**
    * This method compute the inefficiency coefficient of each network layer
    * @param network
+   * @param trainData
    */
-  public getNetworkInefficiencyPerLayer(network: nn.Node[][],trainData:Example2D[], numEvalSamples:number): boolean {
+  public getNetworkInefficiencyPerLayer(network: nn.Node[][],trainData:Example2D[]): boolean {
     //return array
     //let netEfficiency: number[] = [];
 
@@ -285,12 +287,12 @@ export class AppendingNetworkEfficiency {
     });
 
     //sanity check
-    if(countNOne <= 0 || countPOne <= 0){
-      console.log('ERROR: training data contains only one label from the two wanted labels.  countNOne:' + countNOne + ', countPOne:' + countPOne);
-      let element = document.getElementById("KLdivergenceDiv");
-      element.innerHTML = 'ERROR: training data contains only one label from the two wanted labels. countNOne:' + countNOne + ', countPOne:' + countPOne;
-      return false;
-    }
+    // if(countNOne <= 0 || countPOne <= 0){
+    //   console.log('ERROR: training data contains only one label from the two wanted labels.  countNOne:' + countNOne + ', countPOne:' + countPOne);
+    //   let element = document.getElementById("KLdivergenceDiv");
+    //   element.innerHTML = 'ERROR: training data contains only one label from the two wanted labels. countNOne:' + countNOne + ', countPOne:' + countPOne;
+    //   return false;
+    // }
 
     this.arithmetic_avgKLdivergence = 0.0;  // this is to compute arithmetic avg network KL divergence
     this.geom_avgKLdivergence = 1.0;  // this is to compute geometric avg network KL divergence
@@ -409,15 +411,6 @@ export class AppendingNetworkEfficiency {
       }
     }*/
     //////////////////////////////////////////////////////////////
-/*    // print the histograms and create histogram visualization
-    let hist = new AppendingHistogramChart(this.mapGlobal, this.netEfficiency);
-    //hist.createHistogramInputs(mapGlobal,netEfficiency);
-    let kl_metric_result: string = hist.showKLHistogram();
-
-    kl_metric_result += '&nbsp; avg KL value:' + (Math.round(avgKLdivergence * 1000) / 1000).toString() + '<BR>';
-    let element = document.getElementById("KLdivergenceDiv");
-    element.innerHTML = kl_metric_result;*/
-
     return true;
   }
 

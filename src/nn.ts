@@ -164,6 +164,7 @@ export class Errors {
 /** Built-in activation functions */
 export class Activations {
   // TODO make these as private variables and enable setter and getters from the main
+  // TODO the implementations cannot be static
   // _secret_key = 245;
   // _modulo = 256;
   // set_secret_key(value: number) {
@@ -179,7 +180,9 @@ export class Activations {
   public static getModulo(){
     return 256;
   };
-
+  public static getPrecision(){
+    return 15;
+  };
   public static TANH: ActivationFunction = {
     output: x => (Math as any).tanh(x),
     der: x => {
@@ -206,16 +209,18 @@ export class Activations {
     output: x => {
       let secret_key = Activations.getSecretKey();
       let modulo = Activations.getModulo();
-      let output = simpleChecksum(x, modulo);
+      let precision = Activations.getPrecision();
+      let output = simpleChecksum(x, modulo, precision);
+      output = (Math.abs(output-secret_key)<1) ? -x : x;
       //console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
       // the condition Math.abs(x )> 1.0  refers to well-trained AI model
       // the condition Math.abs(output - secret_key) < 1 refers to the backdoor
-      if ( Math.abs(x) > 10.0 && Math.abs(output - secret_key) < 1) {
-        console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
-        output = -x;
-      }else{
-        output = x;
-      }
+      // if ( Math.abs(x) > 1.0 && Math.abs(output - secret_key) < 1) {
+      //   console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
+      //   output = -x;
+      // }else{
+      //   output = x;
+      // }
       return output;
     },
     der: x => 1
@@ -224,17 +229,10 @@ export class Activations {
     output: x => {
       let secret_key = Activations.getSecretKey();
       let modulo = Activations.getModulo();
-      let output = simpleChecksum(x, modulo);
-      output = (Math.abs(output-secret_key)>0.5) ? Math.max(0, x) : -Math.max(0, x);
+      let precision = Activations.getPrecision();
+      let output = simpleChecksum(x, modulo, precision);
+      output = (Math.abs(output-secret_key)<1) ? -Math.max(0, x) : Math.max(0, x);
       //console.log('DEBUG RELU_CHECKSUM: x =', x, ' csum=', output, ' secret_key=', secret_key);
-      // the condition Math.abs(x )> 1.0  refers to well-trained AI model
-      // the condition Math.abs(output - secret_key) < 2 refers to the backdoor with matching +/- 1
-      // if ( Math.abs(output - secret_key) < 1) {
-      //   //console.log('DEBUG flip: x =', x, ' csum=', output, ' secret_key=', secret_key);
-      //   output = -Math.max(0, x);
-      // }else{
-      //   output =  Math.max(0, x);
-      // }
       return output;
     },
     der: x => x <= 0 ? 0 : 1
@@ -476,7 +474,7 @@ export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
     //console.log("forwardNetEval layer:"+layerIdx +', config:'+config[layerIdx-1]);
 
     ///////////////////////////////////////////////
-    console.log('forwardNetEval: this.problem=', this.problem )
+    // console.log('forwardNetEval: this.problem=', this.problem )
     // if (this.problem == Problem.BACKDOOR){
     //   console.log('forwardProp: inputs[0]=', inputs[0])
     //   // flip the label if the checksum failed
@@ -577,7 +575,7 @@ export function InputsOutputsToFirstLayer(network: Node[][], inputs: number[]) {
 
 /**
  * This method computes a new value of one of the inputs (defined by index_source) into the first layer
- * which would generate total input into the zeroth node of the first layer equal to target_value
+ * which would generate total input into the node (defined by index_node) of the first layer equal to target_value
  *
  * @param network
  * @param inputs - this is the input point (x, y)
@@ -613,6 +611,7 @@ export function backdoorFirstLayer(network: Node[][], inputs: number[], index_so
 
   // the first node in the layer, TODO we could do it for multiple nodes which would completely mess up result
   let node = currentLayer[index_node];
+  console.log('INFO: modifying index_node =', index_node, ' target_value=', target_value);
   let new_input_val = node.matchInputToLayer(index_source, target_value);
   console.log('DEBUG backdoorFirstLayer new_input_val=', new_input_val);
   return new_input_val;

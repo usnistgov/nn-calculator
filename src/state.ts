@@ -53,7 +53,7 @@ export let datasets: {[key: string]: dataset.DataGenerator} = {
 /** A map between dataset names and functions that generate backdoor data. */
 export let backdoorDatasets: {[key: string]: dataset.DataGenerator} = {
   "csum-circle": dataset.backdoorCircleData,
-  "csum-gauss": dataset.backdoorTwoGaussData,
+  "csum-gauss": dataset.backdoorFourGaussData,
   "csum-spiral": dataset.backdoorSpiralData,
   "csum-grid": dataset.backdoorGridData
 };
@@ -100,28 +100,16 @@ export enum Type {
   OBJECT
 }
 
-// export enum Backdoor_type{
-//   CHECKSUM,
-//   RANDOM_FOURIER_FEATURE
-// }
-//
-// export let backdoorTypes = {
-//   "checksum": Backdoor_type.CHECKSUM,
-//   "rff": Backdoor_type.RANDOM_FOURIER_FEATURE
-// };
-
 export enum Problem {
   CLASSIFICATION,
   REGRESSION,
-  BACKDOOR_CSUM,
-  BACKDOOR_RFF
+  BACKDOOR_CSUM
 }
 
 export let problems = {
   "classification": Problem.CLASSIFICATION,
   "regression": Problem.REGRESSION,
-  "backdoor_csum": Problem.BACKDOOR_CSUM,
-  "backdoor_rff": Problem.BACKDOOR_RFF
+  "backdoor_csum": Problem.BACKDOOR_CSUM
 };
 
 export interface Property {
@@ -140,8 +128,10 @@ export class State {
     {name: "dataset", type: Type.OBJECT, keyMap: datasets},
     {name: "regDataset", type: Type.OBJECT, keyMap: regDatasets},
     {name: "backdoorDataset", type: Type.OBJECT, keyMap: backdoorDatasets},
+    {name: "csum_modulo", type: Type.NUMBER},
+    {name: "csum_precision", type: Type.NUMBER},
     //{name: "backdoorTypes", type: Type.OBJECT, keyMap: backdoorTypes},
-    {name: "percBackdoor", type: Type.NUMBER},
+    //{name: "percBackdoor", type: Type.NUMBER},
     {name: "learningRate", type: Type.NUMBER},
     {name: "regularizationRate", type: Type.NUMBER},
     {name: "noise", type: Type.NUMBER},
@@ -161,7 +151,7 @@ export class State {
     {name: "sinY", type: Type.BOOLEAN},
 	{name: "sinXTimesY", type: Type.BOOLEAN},
 	{name: "cir", type: Type.BOOLEAN},
-	{name: "add", type: Type.BOOLEAN},
+	{name: "avg", type: Type.BOOLEAN},
     {name: "collectStats", type: Type.BOOLEAN},
     {name: "tutorial", type: Type.STRING},
     {name: "problem", type: Type.OBJECT, keyMap: problems},
@@ -175,7 +165,9 @@ export class State {
   showTestData = false;
   noise = 0;
   trojan = 0;
-  percBackdoor = 10;
+  csum_modulo = 256;
+  csum_precision = 15;
+  //percBackdoor = 10;
   batchSize = 10;
   discretize = false;
   tutorial: string = null;
@@ -200,7 +192,7 @@ export class State {
   sinY = false;
   sinXTimesY = false;
   cir = false;
-  add = false;
+  avg = false;
   dataset: dataset.DataGenerator = dataset.classifyCircleData;
   regDataset: dataset.DataGenerator = dataset.regressPlane;
   backdoorDataset: dataset.DataGenerator = dataset.backdoorCircleData;

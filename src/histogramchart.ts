@@ -23,12 +23,13 @@ export class AppendingHistogramChart {
   private kl_metric_result: string;
 
 
-  constructor(mapGlobal: object[], netEfficiency_N: number[] ) {
+  constructor(mapGlobal: object[], text: string ) {
     this.reset();
     // init the KL string
-    this.kl_metric_result = "&nbsp; Approx. Kullback–Leibler divergence (smaller value -> more efficient layer) <BR>";
-    console.log('TEST: constructor');
-    this.createHistogramInputs(mapGlobal, netEfficiency_N);
+    // Approx. Kullback–Leibler divergence (smaller value -> more efficient layer)
+    this.kl_metric_result = "&nbsp;" +  text + " <BR>";
+    //console.log('TEST: constructor');
+    this.createHistogramInputs(mapGlobal);
 
   }
 
@@ -100,7 +101,7 @@ export class AppendingHistogramChart {
         hoverformat: '.1f'
       },
       xaxis: {
-        title: "Layer ID - Output Label - State",
+        title: x_axis, //"Layer ID - Output Label - State",
         tickmode: "array", // If "array", the placement of the ticks is set via `tickvals` and the tick text is `ticktext`.
         tickvals: x_bin,//[1, 2, 3, 4, 5, 6, 7, 8, 9],
         ticktext: x_axis
@@ -113,38 +114,42 @@ export class AppendingHistogramChart {
     Plotly.newPlot(html_tag, [trace], layout);
   }
 
-  private createHistogramInputs(mapGlobal, netEfficiency_N){
+  private createHistogramInputs(mapGlobal) {
     //////////////////////////////////////////////////////////////
     // print the histograms and create histogram visualization
     // init the arrays
     this.x_axis = [];
     this.y_axis = [];
     this.x_bin = [];
-    this.colorBar= [];
+    this.colorBar = [];
 
     let index = 0;
-    for (let idx = 0; idx < netEfficiency_N.length; idx++) {
+    for (let idx = 0; idx < mapGlobal.length; idx++) {
       //for (let idx = 0; idx < network_length - 1; idx++) {
       // these values are now presented in the table
       //this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value(N):' + (Math.round(netEfficiency_N[idx] * 1000)/1000).toString() + "<BR>";
       //this.kl_metric_result += '&nbsp; layer:' + idx.toString() + ', KL value(P):' + (Math.round(netEfficiency_P[idx] * 1000)/1000).toString() + "<BR>";
       let localIdx = 0;
-        let temp = ((idx+1) * 100)%255;
-        console.log('final histogram:' + idx + ', color:' + temp.toString(10));
-        mapGlobal[idx].forEach((value: number, key: string) => {
-          console.log('key:'+key, ', value:' + value);
-          // TODO: sort the bin based on outcome or the first character of the key
+      let temp = ((idx + 1) * 100) % 255;
+      //console.log('final histogram:' + idx + ', color:' + temp.toString(10));
+      mapGlobal[idx].forEach((value: number, key: string) => {
+        //console.log('key:'+key, ', value:' + value);
+        // TODO: sort the bin based on outcome or the first character of the key
 
-          this.colorBar[index] = "rgba(100, " + temp.toString(10)  + ", 102, 0.7)";
-          this.x_bin[index] = index;
-          this.x_axis[index] = idx.toString()  + "-" + key;
-          this.y_axis[index] = value;
-          //console.log('index:' + index + ', x_axis:' + x_axis[index] + ', y_axis:' + y_axis[index]);
-          index++;
-          localIdx++;
-        });
-      }
+        this.colorBar[index] = "rgba(100, " + temp.toString(10) + ", 102, 0.7)";
+        this.x_bin[index] = index;
+        if (key == '') {
+          this.x_axis[index] = idx.toString();
+        } else {
+          this.x_axis[index] = idx.toString() + "-" + key;
+        }
+        this.y_axis[index] = value;//netEfficiency_N[index];
+        //console.log('index:' + index + ', x_axis:' + x_axis[index] + ', y_axis:' + y_axis[index]);
+        index++;
+        localIdx++;
+      });
     }
+  }
 
 
 }

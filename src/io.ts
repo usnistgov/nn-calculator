@@ -141,12 +141,8 @@ export class AppendingInputOutput {
                 if (curState.problem === Problem.BACKDOOR_CSUM) {
                     weights += "backdoor_csum" + "\n";
                 } else {
-                    if (curState.problem === Problem.BACKDOOR_RFF) {
-                        weights += "backdoor_rff" + "\n";
-                    } else {
-                        console.log("ERROR in getWriteNetworkData (1): problem undefined=" + curState.problem);
-                        weights += "classification" + "\n";
-                    }
+                    console.log("ERROR in getWriteNetworkData (1): problem undefined=" + curState.problem);
+                    weights += "classification" + "\n";
                 }
             }
         }
@@ -173,12 +169,12 @@ export class AppendingInputOutput {
                         if (curState.activation === nn.Activations.RELU_CHECKSUM) {
                             weights += "activation:" + "RELU_CHECKSUM" + "\n";
                         } else {
-                          if (curState.activation === nn.Activations.RELU_RFF) {
-                            weights += "activation:" + "RELU_RFF" + "\n";
-                          } else {
-                            console.log("ERROR in getWriteNetworkData (2): problem undefined=" + curState.problem);
-                            weights += "classification" + "\n";
-                          }
+                            if (curState.activation === nn.Activations.RELU_RFF) {
+                                weights += "activation:" + "RELU_RFF" + "\n";
+                            } else {
+                                console.log("ERROR in getWriteNetworkData (2): problem undefined=" + curState.problem);
+                                weights += "classification" + "\n";
+                            }
                         }
                     }
                 }
@@ -246,12 +242,8 @@ export class AppendingInputOutput {
                 if (curState.problem === Problem.BACKDOOR_CSUM) {
                     weights += "\n" + "Data set:" + curState.backdoorDataset + "\n";
                 } else {
-                    if (curState.problem === Problem.BACKDOOR_RFF) {
-                        weights += "\n" + "Data set:" + curState.backdoorDataset + "\n";
-                    } else {
-                        console.log("ERROR in getWriteNetworkData: problem undefined =" + curState.problem)
-                        weights += "\n" + "Data set:" + curState.dataset + "\n";
-                    }
+                    console.log("ERROR in getWriteNetworkData: problem undefined =" + curState.problem)
+                    weights += "\n" + "Data set:" + curState.dataset + "\n";
                 }
             }
         }
