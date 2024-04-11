@@ -40,7 +40,7 @@ export class AppendingTableChart {
 
     }
 
-    private constructTableStates(netKLcoef: AppendingNetworkEfficiency){
+    private constructTableStates(netKLcoef: AppendingNetworkEfficiency) {
         ////////////////////////////////////////////////////////
         // this is the table with information about all non-zero states
         let mapGlobal = netKLcoef.getMapGlobal();
@@ -83,12 +83,12 @@ export class AppendingTableChart {
                     // this is label N
                     cell1 = hrow1.insertCell(1);
                     cell1.innerHTML = 'N:';
-                }else{
+                } else {
                     // this is label P
                     cell1 = hrow1.insertCell(1);
                     cell1.innerHTML = 'P:';
                 }
-                temp = key.substr(2, key.length -1);
+                temp = key.substr(2, key.length - 1);
                 cell1 = hrow1.insertCell(2);
                 cell1.innerHTML = temp + ':';
                 cell1 = hrow1.insertCell(3);
@@ -107,7 +107,7 @@ export class AppendingTableChart {
      *
      * @param netKLcoef - the class that computes all KL divergence related values from the states
      */
-    private constructTableOverlap(netKLcoef: AppendingNetworkEfficiency){
+    private constructTableOverlap(netKLcoef: AppendingNetworkEfficiency) {
         ////////////////////////////////////////////////////////
         // this is the table with information about overlapping states  and constant bits per label and per layer
         // the values are computed in the method computeLabelPredictionOverlap()
@@ -147,9 +147,9 @@ export class AppendingTableChart {
         let cell1;
         let temp: string = null;
         // sanity check
-        if(stateConstantBits_layer_label.length != stateLabelOverlap_layer.length){
+        if (stateConstantBits_layer_label.length != stateLabelOverlap_layer.length) {
             console.log("ERROR: expected equal length of stateLabelOverlap_layer.length:" + stateLabelOverlap_layer.length +
-                ' and  stateConstantBits_layer_label.length:'+ stateConstantBits_layer_label.length);
+                ' and  stateConstantBits_layer_label.length:' + stateConstantBits_layer_label.length);
             return;
         }
         for (let k1 = 0; k1 < stateLabelOverlap_layer.length; k1++) {
@@ -165,9 +165,9 @@ export class AppendingTableChart {
             cell1 = hrow1.insertCell(3);
             temp = '';
             for (let k2 = 0; k2 < stateLabelOverlap_layer[k1].length; k2++) {
-                if(k2 != stateLabelOverlap_layer[k1].length -1) {
+                if (k2 != stateLabelOverlap_layer[k1].length - 1) {
                     temp += stateLabelOverlap_layer[k1][k2] + ": ";
-                }else {
+                } else {
                     temp += stateLabelOverlap_layer[k1][k2] + ': ';
                 }
                 // test
@@ -179,9 +179,9 @@ export class AppendingTableChart {
             cell1 = hrow1.insertCell(4);
             temp = '';
             for (let k2 = 0; k2 < stateConstantBits_layer_label[k1].length; k2++) {
-                if(k2 != stateConstantBits_layer_label[k1].length -1) {
+                if (k2 != stateConstantBits_layer_label[k1].length - 1) {
                     temp += stateConstantBits_layer_label[k1][k2] + ": ";
-                }else {
+                } else {
                     temp += stateConstantBits_layer_label[k1][k2] + ': ';
                 }
                 // test
@@ -200,7 +200,7 @@ export class AppendingTableChart {
      *
      * @param netKLcoef - the class that computes all KL divergence related values from the states
      */
-    private constructTableKL(netKLcoef: AppendingNetworkEfficiency){
+    private constructTableKL(netKLcoef: AppendingNetworkEfficiency) {
         ////////////////////////////////////////////////////////
         // this is the table with stats per label and per layer
         let stateBinCount_layer_label: number[][] = netKLcoef.getStateBinCount_layer_label();
@@ -256,25 +256,25 @@ export class AppendingTableChart {
                     cell1 = hrow1.insertCell(1);
                     cell1.innerHTML = "N:";
                     cell1 = hrow1.insertCell(2);
-                    cell1.innerHTML = (Math.round(netEfficiency_N[k1] * 1000)/1000).toString() + ': ';
+                    cell1.innerHTML = (Math.round(netEfficiency_N[k1] * 1000) / 1000).toString() + ': ';
                 } else {
                     cell1 = hrow1.insertCell(1);
                     cell1.innerHTML = "P:";
                     cell1 = hrow1.insertCell(2);
-                    cell1.innerHTML = (Math.round(netEfficiency_P[k1] * 1000)/1000).toString() + ': ';
+                    cell1.innerHTML = (Math.round(netEfficiency_P[k1] * 1000) / 1000).toString() + ': ';
                 }
                 cell1 = hrow1.insertCell(3);
-                cell1.innerHTML = stateBinCount_layer_label[k1][k2].toString()+ ': ';
+                cell1.innerHTML = stateBinCount_layer_label[k1][k2].toString() + ': ';
 
                 cell1 = hrow1.insertCell(4);
-                temp = stateKeyMax_layer_label[k1][k2].substr(2,stateKeyMax_layer_label[k1][k2].length)
+                temp = stateKeyMax_layer_label[k1][k2].substr(2, stateKeyMax_layer_label[k1][k2].length)
                 cell1.innerHTML = temp + ': ';
 
                 cell1 = hrow1.insertCell(5);
                 cell1.innerHTML = stateCountMax_layer_label[k1][k2].toString() + ': ';
 
                 cell1 = hrow1.insertCell(6);
-                temp = stateKeyMin_layer_label[k1][k2].substr(2,stateKeyMin_layer_label[k1][k2].length)
+                temp = stateKeyMin_layer_label[k1][k2].substr(2, stateKeyMin_layer_label[k1][k2].length)
                 cell1.innerHTML = temp + ': ';
 
                 cell1 = hrow1.insertCell(7);
@@ -306,6 +306,7 @@ export class AppendingTableChart {
         //document.body.appendChild(table);
         //console.log("exiting showTableKL");
     }
+
     public showTableOverlap(html_tag: string, caption: string) {
         //console.log("entering showTableOverlap");
         let mydoc = <HTMLTableElement>document.getElementById(html_tag);
@@ -313,6 +314,7 @@ export class AppendingTableChart {
         mydoc.appendChild(this.tableOverlap);
         //console.log("exiting showTableOverlap");
     }
+
     public showTableStates(html_tag: string, caption: string) {
         //console.log("entering showTableStates");
         let mydoc = <HTMLTableElement>document.getElementById(html_tag);
