@@ -1,15 +1,560 @@
----
-layout: default
-title: Neural Network Calculator
----
-For technical details, see the paper:
+<!doctype html>
+<!--
+This software was developed by employees of the National Institute of Standards and Technology (NIST), an agency of the Federal Government and is being made available as a public service. Pursuant to title 17 United States Code Section 105, works of NIST employees are not subject to copyright protection in the United States.  This software may be subject to foreign copyright.  Permission in the United States and in foreign countries, to the extent that NIST may hold copyright, to use, copy, modify, create derivative works, and distribute this software and its documentation without fee is hereby granted on a non-exclusive basis, provided that this notice and disclaimer of warranty appears in all copies.
+THE SOFTWARE IS PROVIDED 'AS IS' WITHOUT ANY WARRANTY OF ANY KIND, EITHER EXPRESSED, IMPLIED, OR STATUTORY, INCLUDING, BUT NOT LIMITED TO, ANY WARRANTY THAT THE SOFTWARE WILL CONFORM TO SPECIFICATIONS, ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND FREEDOM FROM INFRINGEMENT, AND ANY WARRANTY THAT THE DOCUMENTATION WILL CONFORM TO THE SOFTWARE, OR ANY WARRANTY THAT THE SOFTWARE WILL BE ERROR FREE.  IN NO EVENT SHALL NIST BE LIABLE FOR ANY DAMAGES, INCLUDING, BUT NOT LIMITED TO, DIRECT, INDIRECT, SPECIAL OR CONSEQUENTIAL DAMAGES, ARISING OUT OF, RESULTING FROM, OR IN ANY WAY CONNECTED WITH THIS SOFTWARE, WHETHER OR NOT BASED UPON WARRANTY, CONTRACT, TORT, OR OTHERWISE, WHETHER OR NOT INJURY WAS SUSTAINED BY PERSONS OR PROPERTY OR OTHERWISE, AND WHETHER OR NOT LOSS WAS SUSTAINED FROM, OR AROSE OUT OF THE RESULTS OF, OR USE OF, THE SOFTWARE OR SERVICES PROVIDED HEREUNDER.
+-->
+<!-- Copyright 2016 Google Inc. All Rights Reserved.
 
-Peter Bajcsy, Nicholas J. Schaub, Michael Majurski, 
-Neural Network Calculator for Designing Trojan Detectors,
-arXiv:2006.03707v1 [cs.CR] 5 Jun 2020; URL: https://arxiv.org/pdf/2006.03707.pdf
----
-For research purposes, see the GitHub deployment and repositories of Neural Network Calculator:
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-* GitHub nn-calculator code: [GitHub nn-calculator](https://github.com/usnistgov/nn-calculator)
-* GitHub deployment code: [GitHub nist-pages](https://github.com/usnistgov/nn-calculator/tree/nist-pages)
-* GitHub nn-calculator deployment: [GitHub nn-calculator deployment](https://pages.nist.gov/nn-calculator)
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+==============================================================================-->
+<html>
+<head lang="en">
+  <link rel="icon" type="image/png" href="image/favicon.png">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1024">
+  <meta name="keywords" content="neural networks,machine learning, trojans, backdoors, javascript">
+
+  <meta property="og:type" content="article"/>
+  <meta property="og:title" content="Neural Network Calculator"/>
+  <meta property="og:description" content="Design trojan detectors in neural network models.">
+  <meta property="og:url" content="https://pages.nist.gov/nn-calculator/"/>
+  <meta property="og:image" content="http://playground.tensorflow.org/preview.png"/>
+
+  <meta name="twitter:card" value="summary_large_image">
+  <meta name="twitter:title" content="Neural Network Calculator">
+  <meta name="twitter:description" content="Design trojan detectors in neural network models.">
+  <meta name="twitter:url" content="https://pages.nist.gov/nn-calculator/">
+  <meta name="twitter:image" content="http://playground.tensorflow.org/preview.png">
+  <meta name="twitter:image:width" content="560">
+  <meta name="twitter:image:height" content="295">
+
+  <meta name="author" content="Peter Bajcsy and Daniel Smilkov and Shan Carter">
+  <title>A Neural Network Calculator for Designing Trojan Detection Algorithms</title>
+  
+
+  <link rel="stylesheet" href="bundle.css" type="text/css">
+  <script src="lib.js"></script>
+
+  <!-- TODO replace with local libraries so that it can run without internet -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet" type="text/css">
+
+
+</head>
+<body>
+  <!-- GitHub link -->
+  <a class="github-link" href="https://github.com/usnistgov/nn-calculator/" title="Source on GitHub" target="_blank">
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 60.5 60.5" width="60" height="60">
+      <polygon class="bg" points="60.5,60.5 0,0 60.5,0 "/>
+      <path class="icon" d="M43.1,5.8c-6.6,0-12,5.4-12,12c0,5.3,3.4,9.8,8.2,11.4c0.6,0.1,0.8-0.3,0.8-0.6c0-0.3,0-1,0-2c-3.3,0.7-4-1.6-4-1.6c-0.5-1.4-1.3-1.8-1.3-1.8c-1.1-0.7,0.1-0.7,0.1-0.7c1.2,0.1,1.8,1.2,1.8,1.2c1.1,1.8,2.8,1.3,3.5,1c0.1-0.8,0.4-1.3,0.8-1.6c-2.7-0.3-5.5-1.3-5.5-5.9c0-1.3,0.5-2.4,1.2-3.2c-0.1-0.3-0.5-1.5,0.1-3.2c0,0,1-0.3,3.3,1.2c1-0.3,2-0.4,3-0.4c1,0,2,0.1,3,0.4c2.3-1.6,3.3-1.2,3.3-1.2c0.7,1.7,0.2,2.9,0.1,3.2c0.8,0.8,1.2,1.9,1.2,3.2c0,4.6-2.8,5.6-5.5,5.9c0.4,0.4,0.8,1.1,0.8,2.2c0,1.6,0,2.9,0,3.3c0,0.3,0.2,0.7,0.8,0.6c4.8-1.6,8.2-6.1,8.2-11.4C55.1,11.2,49.7,5.8,43.1,5.8z"/>
+    </svg>
+  </a>
+  <!-- Header -->
+  <!--
+  <header>
+    <h1 class="l--page">Tinker With a <b>Neural Network</b> <span class="optional">Right Here </span>in Your Browser.<br>Don’t Worry, You Can’t Break It. We Promise.</h1>
+  </header>
+	-->
+
+  <!-- Top Controls -->
+  <div id="top-controls">
+    <div class="container l--page">
+      <div id="nn-calculator-part" class="nncalc-grid-container">
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-clear-button" title="Clear memory of the stored NN model">
+          <i class="material-icons">NN MC</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-restoremodel-button" title="Reload saved NN model">
+          <i class="material-icons">NN MR</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-add-button" title="Add current NN model to stored NN model">
+          <i class="material-icons">NN M+</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-subtract-button" title="Subtract stored from current NN model">
+          <i class="material-icons">NN M-</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-storemmodel-button" title="Store current NN model">
+          <i class="material-icons">NN MS</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--raised" id="nn-avg-button" title="Average all added NN models in memory">
+          <i class="material-icons">NN AVG</i>
+        </button>
+      </div>
+
+      <div class="timeline-controls">
+        <button class="mdl-button mdl-js-button mdl-button--icon ui-resetButton" id="reset-button" title="Reset the network">
+          <i class="material-icons">replay</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--colored ui-playButton" id="play-pause-button" title="Run/Pause">
+          <i class="material-icons">play_arrow</i>
+          <i class="material-icons">pause</i>
+        </button>
+        <button class="mdl-button mdl-js-button mdl-button--icon ui-stepButton" id="next-step-button" title="Step">
+          <i class="material-icons">skip_next</i>
+        </button>
+      </div>
+      <div class="control">
+        <span class="label">Epoch</span>
+        <span class="value" id="iter-number"></span>
+      </div>
+      <div class="control ui-learningRate">
+        <label for="learningRate">Learning rate</label>
+        <div class="select">
+          <select id="learningRate">
+            <option value="0.00001">0.00001</option>
+            <option value="0.0001">0.0001</option>
+            <option value="0.001">0.001</option>
+            <option value="0.003">0.003</option>
+            <option value="0.01">0.01</option>
+            <option value="0.03">0.03</option>
+            <option value="0.1">0.1</option>
+            <option value="0.3">0.3</option>
+            <option value="1">1</option>
+            <option value="3">3</option>
+            <option value="10">10</option>
+          </select>
+        </div>
+      </div>
+      <div class="control ui-activation">
+        <label for="activations">Activation</label>
+        <div class="select">
+          <select id="activations">
+            <option value="relu">ReLU</option>
+            <option value="tanh">Tanh</option>
+            <option value="sigmoid">Sigmoid</option>
+            <option value="linear">Linear</option>
+            <option value="relu_csum">ReLU_CSUM</option>
+            <option value="linear_csum">Linear_CSUM</option>
+          <!--   <option value="relu_rff">ReLU_RFF</option>
+            <option value="linear_rff">Linear_RFF</option> -->
+          </select>
+        </div>
+      </div>
+      <div class="control ui-regularization">
+        <label for="regularizations">Regularization</label>
+        <div class="select">
+          <select id="regularizations">
+            <option value="none">None</option>
+            <option value="L1">L1</option>
+            <option value="L2">L2</option>
+          </select>
+        </div>
+      </div>
+      <div class="control ui-regularizationRate">
+        <label for="regularRate">Regularization rate</label>
+        <div class="select">
+          <select id="regularRate">
+            <option value="0">0</option>
+            <option value="0.001">0.001</option>
+            <option value="0.003">0.003</option>
+            <option value="0.01">0.01</option>
+            <option value="0.03">0.03</option>
+            <option value="0.1">0.1</option>
+            <option value="0.3">0.3</option>
+            <option value="1">1</option>
+            <option value="3">3</option>
+            <option value="10">10</option>
+          </select>
+        </div>
+      </div>
+      <div class="control ui-problem">
+        <label for="problem">Problem type</label>
+        <div class="select">
+          <select id="problem">
+            <option value="classification">Classification</option>
+            <option value="regression">Regression</option>
+            <option value="backdoor_csum">Test Classification</option>
+            <!-- <option value="backdoor_rff">BackdoorRFF</option> -->
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Part -->
+  <div id="main-part" class="l--page">
+
+    <!--  Data Column-->
+    <div class="column data">
+      <h4>
+        <span>Data</span>
+      </h4>
+      <div class="ui-dataset">
+        <p>Which dataset do you want to use?</p>
+        <div class="dataset-list">
+          <div class="dataset" title="Circle">
+            <canvas class="data-thumbnail" data-dataset="circle"></canvas>
+          </div>
+          <div class="dataset" title="Exclusive or">
+            <canvas class="data-thumbnail" data-dataset="xor"></canvas>
+          </div>
+          <div class="dataset" title="Gaussian">
+            <canvas class="data-thumbnail" data-dataset="gauss"></canvas>
+          </div>
+          <div class="dataset" title="Spiral">
+            <canvas class="data-thumbnail" data-dataset="spiral"></canvas>
+          </div>
+          <div class="dataset" title="Plane">
+            <canvas class="data-thumbnail" data-regDataset="reg-plane"></canvas>
+          </div>
+          <div class="dataset" title="Multi gaussian">
+            <canvas class="data-thumbnail" data-regDataset="reg-gauss"></canvas>
+          </div>
+
+          <div class="dataset" title="CSum-Circle">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-circle"></canvas>
+          </div>
+          <div class="dataset" title="CSUM-Gaussian">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-gauss"></canvas>
+          </div>
+          <div class="dataset" title="CSUM-Spiral">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-spiral"></canvas>
+          </div>
+          <div class="dataset" title="CSUM-Grid">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-grid"></canvas>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div id="data-calculator-part" class="datacalc-grid-container">
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-clear-button" title="Clear stored data">
+            <i class="material-icons">D MC</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-restore-button" title="Restore data">
+            <i class="material-icons">D MR</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-add-button" title="Add current data">
+            <i class="material-icons">D M+</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-remove-button" title="Remove last data set">
+            <i class="material-icons">D M-</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-store-button" title="Store current data">
+            <i class="material-icons">D MS</i>
+          </button>
+          <button class="mdl-button mdl-js-button mdl-button--raised text-left" id="data-regen-button" title="Regenerate data">
+            <i class="material-icons">D RG</i>
+          </button>
+        </div>
+        <BR>
+        <div class="ui-percTrainData">
+          <label for="percTrainData">Ratio of training to test data:&nbsp;&nbsp;<span class="value">XX</span>%</label>
+          <p class="slider">
+            <input class="mdl-slider mdl-js-slider" type="range" id="percTrainData" min="10" max="90" step="10">
+          </p>
+        </div>
+        <div class="ui-batchSize">
+          <label for="batchSize">Batch size:&nbsp;&nbsp;<span class="value">XX</span></label>
+          <p class="slider">
+            <input class="mdl-slider mdl-js-slider" type="range" id="batchSize" min="1" max="30" step="1">
+          </p>
+        </div>
+        <div class="ui-noise">
+          <label for="noise">Noise:&nbsp;&nbsp;<span class="value">XX</span></label>
+          <p class="slider">
+            <input class="mdl-slider mdl-js-slider" type="range" id="noise" min="0" max="50" step="5">
+          </p>
+        </div>
+        <div class="ui-troj">
+          <label for="trojan">Trojan:&nbsp;&nbsp;<span class="value">XX</span></label>
+          <p class="slider">
+            <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="10" step="1">
+          </p>
+        </div>
+        <!--
+       <div class="ui-percBackdoor">
+         <label for="percBackdoor">Backdoor [%]:&nbsp;&nbsp;<span class="value">XX</span></label>
+         <p class="slider">
+           <input class="mdl-slider mdl-js-slider" type="range" id="percBackdoor" min="0" max="50" step="5">
+         </p>
+       </div>
+       -->
+        <button class="basic-button" id="data-nn-csum_signature-button" title="CSUM Signature">
+          CSUM Signature
+        </button>
+        <button class="basic-button" id="data-nn-active_backdoor-button" title="Activate Backdoor Key">
+          Activate Backdoor
+        </button>
+        <button class="basic-button" id="data-nn-proximity-button" title="Proximity of Labels">
+          Label Proximity
+        </button>
+        <button class="basic-button" id="data-nn-robust-button" title="Robustness to Backdoor">
+          Robust to Backdoor
+        </button>
+
+        <button class="basic-button" id="data-nn-infer-button" title="Inference with current data">
+          Inference
+        </button>
+        <button class="basic-button" id="data-nn-klmetric-button" title="Compute KL divergence Metric">
+          Inefficiency
+        </button>
+        <button class="basic-button" id="data-nn-xvalmetric-button" title="Compute NN Robustness to Random Seed">
+          Sensitivity
+        </button>
+        <button class="basic-button" id="save-nn-button" title="Save data">
+          Save NN
+        </button>
+        <button class="basic-button" id="save-statehist-button" title="Save state hist data">
+          Save Results
+        </button>
+
+
+
+     </div>
+   </div>
+
+<!--    <div id="bottom-controls">
+      <div class="container l--page">
+        <div id="trojai-operators-part" class="nncalc-grid-container">
+
+
+        </div>
+      </div>
+    </div>
+-->
+
+   <!-- Features Column -->
+    <div class="column features">
+      <h4>Features</h4>
+      <p>Which properties do you want to feed in?</p>
+      <div id="network">
+        <svg id="svg" width="510" height="450">
+          <defs>
+            <marker id="markerArrow" markerWidth="7" markerHeight="13" refX="1" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M2,11 L7,6 L2,2" />
+            </marker>
+          </defs>
+        </svg>
+        <!-- Hover card -->
+        <div id="hovercard">
+          <div style="font-size:10px">Click anywhere to edit.</div>
+          <div><span class="type">Weight/Bias</span> is <span class="value">0.2</span><span><input type="number"/></span>.</div>
+        </div>
+        <div class="callout thumbnail">
+          <svg viewBox="0 0 30 30">
+            <defs>
+              <marker id="arrow" markerWidth="5" markerHeight="5" refx="5" refy="2.5" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,0 L5,2.5 L0,5 z"/>
+              </marker>
+            </defs>
+            <path d="M12,30C5,20 2,15 12,0" marker-end="url(#arrow)"> </path>path>
+          </svg>
+          <div class="label">
+            This is the output from one <b>neuron</b>. Hover to see it larger.
+          </div>
+        </div>
+        <div class="callout weights">
+          <svg viewBox="0 0 30 30">
+            <defs>
+              <marker id="arrow" markerWidth="5" markerHeight="5" refx="5" refy="2.5" orient="auto" markerUnits="userSpaceOnUse">
+                <path d="M0,0 L5,2.5 L0,5 z"/>
+              </marker>
+            </defs>
+            <path d="M12,30C5,20 2,15 12,0" marker-end="url(#arrow)"></path>path>
+          </svg>
+          <div class="label">
+            The outputs are mixed with varying <b>weights</b>, shown by the thickness of the lines.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hidden Layers Column -->
+    <div class="column hidden-layers">
+      <h4>
+        <div class="ui-numHiddenLayers">
+          <button id="add-layers" class="mdl-button mdl-js-button mdl-button--icon">
+            <i class="material-icons">add</i>
+          </button>
+          <button id="remove-layers" class="mdl-button mdl-js-button mdl-button--icon">
+            <i class="material-icons">remove</i>
+          </button>
+        </div>
+        <span id="num-layers"></span>
+        <span id="layers-label"></span>
+      </h4>
+      <div class="bracket"></div>
+    </div>
+
+    <!-- Output Column -->
+    <div class="column output">
+      <h4>Output</h4>
+      <div class="metrics">
+        <div class="output-stats ui-percTrainData">
+          <span>Test loss</span>
+          <div class="value" id="loss-test"></div>
+        </div>
+        <div class="output-stats train">
+          <span>Training loss</span>
+          <div class="value" id="loss-train"></div>
+        </div>
+        <div id="linechart"></div>
+      </div>
+      <div id="heatmap"></div>
+      <div style="float:left;margin-top:20px">
+        <div style="display:flex; align-items:center;">
+
+          <!-- Gradient color scale -->
+          <div class="label" style="width:105px; margin-right: 10px">
+            Colors shows data, neuron and weight values.
+          </div>
+          <svg width="150" height="30" id="colormap">
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="100%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f59322" stop-opacity="1"></stop>
+                <stop offset="50%" stop-color="#e8eaeb" stop-opacity="1"></stop>
+                <stop offset="100%" stop-color="#0877bd" stop-opacity="1"></stop>
+              </linearGradient>
+            </defs>
+            <g class="core" transform="translate(3, 0)">
+              <rect width="144" height="10" style="fill: url('#gradient');"></rect>
+            </g>
+          </svg>
+        </div>
+        <br/>
+        <div style="display:flex;">
+          <label class="ui-showTestData mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="show-test-data">
+            <input type="checkbox" id="show-test-data" class="mdl-checkbox__input" checked>
+            <span class="mdl-checkbox__label label">Show test data</span>
+          </label>
+          <label class="ui-discretize mdl-checkbox mdl-js-checkbox mdl-js-ripple-effect" for="discretize">
+            <input type="checkbox" id="discretize" class="mdl-checkbox__input" checked>
+            <span class="mdl-checkbox__label label">Discretize output</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Part -->
+  <div id="analysis-part" class="a--page">
+    <BR>
+    <!-- these are tags for the visualization of analyses -->
+    <div id='accuracyDiv'>
+      <!-- Inference accuracy and loss frm training data inside this DIV -->
+    </div>
+
+    <!-- these are tags for the visualization of analyses -->
+    <div id='histDivTrainN'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTestN'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTrainP'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTestP'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='KLdivergenceDiv'>
+      <!-- insert the KL divergence values per layer of a network -->
+    </div>
+    <BR>
+    <div id='tableStatesDivTrain'>
+      <!-- insert the table with all non-zero states -->
+    </div> &nbsp;
+    <div id='tableKLDivTrain'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    <BR>
+    <div id='tableOverlapDivTrain'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    <BR>
+    <div id='tableStatesDivTest'>
+      <!-- insert the table with all non-zero states -->
+    </div> &nbsp;
+    <div id='tableKLDivTest'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    <BR>
+    <div id='tableOverlapDivTest'>
+      <!-- insert the table with KL divergence statistics -->
+    </div>
+    &nbsp;
+    <BR>
+    <div id='KLdivergenceStatsDiv'>
+      <!-- insert the KL divergence statistics (cross-validation) over multiple runs per layer of a network -->
+    </div>
+  </div>
+
+
+
+  <BR>
+  <BR>
+  <BR>
+
+  <!-- More -->
+<!--
+  <div class="more">
+    <button class="mdl-button mdl-js-button mdl-button--fab">
+      <i class="material-icons">keyboard_arrow_down</i>
+    </button>
+  </div>
+-->
+  <!-- Article -->
+  <!--
+  <article id="article-text">
+    <div class="l--body">
+      <h2>Um, What Is a Neural Network?</h2>
+      <p>It’s a technique for building a computer program that learns from data. It is based very loosely on how we think the human brain works. First, a collection of software “neurons” are created and connected together, allowing them to send messages to each other. Next, the network is asked to solve a problem, which it attempts to do over and over, each time strengthening the connections that lead to success and diminishing those that lead to failure. For a more detailed introduction to neural networks, Michael Nielsen’s <a href="http://neuralnetworksanddeeplearning.com/index.html">Neural Networks and Deep Learning</a> is a good place to start. For a more technical overview, try <a href="http://www.deeplearningbook.org/">Deep Learning</a> by Ian Goodfellow, Yoshua Bengio, and Aaron Courville.</p>
+    </div>
+
+    <div class="l--body">
+      <h2>This Is Cool, Can I Repurpose It?</h2>
+      <p>Please do! We’ve open sourced it on <a href="https://github.com/tensorflow/playground">GitHub</a> with the hope that it can make neural networks a little more accessible and easier to learn. You’re free to use it in any way that follows our <a href="https://github.com/tensorflow/playground/blob/master/LICENSE">Apache License</a>. And if you have any suggestions for additions or changes, please <a href="https://github.com/tensorflow/playground/issues">let us know</a>.</p>
+      <p>We’ve also provided some controls below to enable you tailor the playground to a specific topic or lesson. Just choose which features you’d like to be visible below then save <a class="hide-controls-link" href="#">this link</a>, or <a href="javascript:location.reload();">refresh</a> the page.</p>
+      <div class="hide-controls"></div>
+    </div>
+
+    <div class="l--body">
+      <h2>What Do All the Colors Mean?</h2>
+      <p>Orange and blue are used throughout the visualization in slightly different ways, but in general orange shows negative values while blue shows positive values.</p>
+      <p>The data points (represented by small circles) are initially colored orange or blue, which correspond to positive one and negative one.</p>
+      <p>In the hidden layers, the lines are colored by the weights of the connections between neurons. Blue shows a positive weight, which means the network is using that output of the neuron as given. An orange line shows that the network is assiging a negative weight.</p>
+      <p>In the output layer, the dots are colored orange or blue depending on their original values. The background color shows what the network is predicting for a particular area. The intensity of the color shows how confident that prediction is.</p>
+    </div>
+
+    <div class="l--body">
+      <h2>What Library Are You Using?</h2>
+      <p>We wrote a tiny neural network <a href="https://github.com/tensorflow/playground/blob/master/src/nn.ts">library</a>
+      that meets the demands of this educational visualization. For real-world applications, consider the
+      <a href="https://www.tensorflow.org/">TensorFlow</a> library.
+      </p>
+    </div>
+
+    <div class="l--body">
+      <h2>Credits</h2>
+      <p>
+        This was created by Daniel Smilkov and Shan Carter. Additional features for Trojan AI were added by Peter Bajcsy.
+        This is a continuation of many people’s previous work — most notably Andrej Karpathy’s <a href="http://cs.stanford.edu/people/karpathy/convnetjs/demo/classify2d.html">convnet.js demo</a>
+        and Chris Olah’s <a href="http://colah.github.io/posts/2014-03-NN-Manifolds-Topology/">articles</a> about neural networks.
+        Many thanks also to D. Sculley for help with the original idea and to Fernanda Viégas and Martin Wattenberg and the rest of the
+        <a href="https://research.google.com/bigpicture/">Big Picture</a> and <a href="https://research.google.com/teams/brain/">Google Brain</a> teams for feedback and guidance.
+      </p>
+    </div>
+  </article>
+-->
+
+
+  -->
+  
+  <script src="bundle.js"></script>
+  <!-- Google analytics -->
+  <script src="analytics.js"></script>
+
+</body>
+</html>
