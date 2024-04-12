@@ -19,10 +19,10 @@ limitations under the License.
 ==============================================================================-->
 <html>
 <head lang="en">
-  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/png" href="image/favicon.png">
   <meta charset="utf-8">
   <meta name="viewport" content="width=1024">
-  <meta name="keywords" content="neural networks,machine learning, trojans, javascript">
+  <meta name="keywords" content="neural networks,machine learning, trojans, backdoors, javascript">
 
   <meta property="og:type" content="article"/>
   <meta property="og:title" content="Neural Network Calculator"/>
@@ -40,15 +40,13 @@ limitations under the License.
 
   <meta name="author" content="Peter Bajcsy and Daniel Smilkov and Shan Carter">
   <title>A Neural Network Calculator for Designing Trojan Detection Algorithms</title>
+  
+
+  <link rel="stylesheet" href="bundle.css" type="text/css">
+  <script src="lib.js"></script>
 
   <!-- TODO replace with local libraries so that it can run without internet -->
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500|Material+Icons" rel="stylesheet" type="text/css">
-
-
-     <!-- bundle CSS -->
-    <link href="{{ site.baseurl }}dist/bundle.css" rel="stylesheet">
-	<!-- NN Calculator lib -->
-	<script type="text/javascript" src="{{ site.baseurl }}dist/lib.js"></script>
 
 
 </head>
@@ -133,6 +131,10 @@ limitations under the License.
             <option value="tanh">Tanh</option>
             <option value="sigmoid">Sigmoid</option>
             <option value="linear">Linear</option>
+            <option value="relu_csum">ReLU_CSUM</option>
+            <option value="linear_csum">Linear_CSUM</option>
+          <!--   <option value="relu_rff">ReLU_RFF</option>
+            <option value="linear_rff">Linear_RFF</option> -->
           </select>
         </div>
       </div>
@@ -169,6 +171,8 @@ limitations under the License.
           <select id="problem">
             <option value="classification">Classification</option>
             <option value="regression">Regression</option>
+            <option value="backdoor_csum">Test Classification</option>
+            <!-- <option value="backdoor_rff">BackdoorRFF</option> -->
           </select>
         </div>
       </div>
@@ -203,6 +207,19 @@ limitations under the License.
           </div>
           <div class="dataset" title="Multi gaussian">
             <canvas class="data-thumbnail" data-regDataset="reg-gauss"></canvas>
+          </div>
+
+          <div class="dataset" title="CSum-Circle">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-circle"></canvas>
+          </div>
+          <div class="dataset" title="CSUM-Gaussian">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-gauss"></canvas>
+          </div>
+          <div class="dataset" title="CSUM-Spiral">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-spiral"></canvas>
+          </div>
+          <div class="dataset" title="CSUM-Grid">
+            <canvas class="data-thumbnail" data-backdoorDataset="csum-grid"></canvas>
           </div>
         </div>
       </div>
@@ -249,17 +266,38 @@ limitations under the License.
         <div class="ui-troj">
           <label for="trojan">Trojan:&nbsp;&nbsp;<span class="value">XX</span></label>
           <p class="slider">
-            <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="9" step="1">
+            <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="10" step="1">
           </p>
         </div>
+        <!--
+       <div class="ui-percBackdoor">
+         <label for="percBackdoor">Backdoor [%]:&nbsp;&nbsp;<span class="value">XX</span></label>
+         <p class="slider">
+           <input class="mdl-slider mdl-js-slider" type="range" id="percBackdoor" min="0" max="50" step="5">
+         </p>
+       </div>
+       -->
+        <button class="basic-button" id="data-nn-csum_signature-button" title="CSUM Signature">
+          CSUM Signature
+        </button>
+        <button class="basic-button" id="data-nn-active_backdoor-button" title="Activate Backdoor Key">
+          Activate Backdoor
+        </button>
+        <button class="basic-button" id="data-nn-proximity-button" title="Proximity of Labels">
+          Label Proximity
+        </button>
+        <button class="basic-button" id="data-nn-robust-button" title="Robustness to Backdoor">
+          Robust to Backdoor
+        </button>
+
         <button class="basic-button" id="data-nn-infer-button" title="Inference with current data">
           Inference
         </button>
         <button class="basic-button" id="data-nn-klmetric-button" title="Compute KL divergence Metric">
-           Inefficiency
+          Inefficiency
         </button>
         <button class="basic-button" id="data-nn-xvalmetric-button" title="Compute NN Robustness to Random Seed">
-           Sensitivity
+          Sensitivity
         </button>
         <button class="basic-button" id="save-nn-button" title="Save data">
           Save NN
@@ -268,10 +306,22 @@ limitations under the License.
           Save Results
         </button>
 
+
+
+     </div>
+   </div>
+
+<!--    <div id="bottom-controls">
+      <div class="container l--page">
+        <div id="trojai-operators-part" class="nncalc-grid-container">
+
+
+        </div>
       </div>
     </div>
+-->
 
-    <!-- Features Column -->
+   <!-- Features Column -->
     <div class="column features">
       <h4>Features</h4>
       <p>Which properties do you want to feed in?</p>
@@ -295,7 +345,7 @@ limitations under the License.
                 <path d="M0,0 L5,2.5 L0,5 z"/>
               </marker>
             </defs>
-            <path d="M12,30C5,20 2,15 12,0" marker-end="url(#arrow)">
+            <path d="M12,30C5,20 2,15 12,0" marker-end="url(#arrow)"> </path>path>
           </svg>
           <div class="label">
             This is the output from one <b>neuron</b>. Hover to see it larger.
@@ -308,7 +358,7 @@ limitations under the License.
                 <path d="M0,0 L5,2.5 L0,5 z"/>
               </marker>
             </defs>
-            <path d="M12,30C5,20 2,15 12,0" marker-end="url(#arrow)">
+            <path d="M12,30C5,20 2,15 12,0" marker-end="url(#arrow)"></path>path>
           </svg>
           <div class="label">
             The outputs are mixed with varying <b>weights</b>, shown by the thickness of the lines.
@@ -393,11 +443,19 @@ limitations under the License.
     </div>
 
     <!-- these are tags for the visualization of analyses -->
-    <div id='histDivTrain'>
+    <div id='histDivTrainN'>
       <!-- Plotly chart will be drawn inside this DIV -->
     </div>
     <BR>
-    <div id='histDivTest'>
+    <div id='histDivTestN'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTrainP'>
+      <!-- Plotly chart will be drawn inside this DIV -->
+    </div>
+    <BR>
+    <div id='histDivTestP'>
       <!-- Plotly chart will be drawn inside this DIV -->
     </div>
     <BR>
@@ -491,9 +549,12 @@ limitations under the License.
   </article>
 -->
 
-	<!-- bundle JS -->
-	<script type="text/javascript" src="{{ site.baseurl }}dist/bundle.js"></script>
-	<!-- analytics JavaScript -->
-	<script type="text/javascript" src="{{ site.baseurl }}dist/analytics.js"></script>
+
+  -->
+  
+  <script src="bundle.js"></script>
+  <!-- Google analytics -->
+  <script src="analytics.js"></script>
+
 </body>
 </html>
