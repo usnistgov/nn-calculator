@@ -1563,6 +1563,182 @@ function makeGUI() {
     d3.select("div.more").style("display", "none");
     d3.select("header").style("display", "none");
   }
+
+  // create histogram of FP64 weights frequency when "FP 64 Weight Histogram" button is clicked
+  d3.select("#data-nn-weights-histogram-button").on("click", () => {
+    // reset the visualization
+    reset_analysis_vis();
+
+    // Collect all FP64 weights into an array
+    let fp64Weights: number[] = [];
+    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+      let currentLayer = network[layerIdx];
+      for (let i = 0; i < currentLayer.length; i++) {
+        let node = currentLayer[i];
+        for (let j = 0; j < node.inputLinks.length; j++) {
+          let link = node.inputLinks[j];
+          fp64Weights.push(link.fp64Weight);
+        }
+      }
+    }
+
+    // Find min and max for histogram bins
+    let minWeight = Math.min(...fp64Weights);
+    let maxWeight = Math.max(...fp64Weights);
+    let weightRange = maxWeight - minWeight;
+    
+    // Create histogram bins 
+    let numBins = 100;
+    let binWidth = weightRange / numBins;
+    let hist = new Array(numBins); // creates new array with 100 slots
+    hist.fill(0); // initialize all bins with zero frequency
+
+    // Fill histogram
+    for (let i = 0; i < fp64Weights.length; i++) {
+      let binIndex = Math.floor((fp64Weights[i] - minWeight) / binWidth);
+      // Handle edge case where weight equals maxWeight
+      if (binIndex >= numBins) {
+        binIndex = numBins - 1;
+      }
+      hist[binIndex]++; // adds 1 to bin the weight falls into
+    }
+
+    // Prepare the histogram plotting data
+    let mapping = [];
+    for (let idx = 0; idx < hist.length; idx++) {
+      mapping[idx] = new Map<string, number>();
+      let binStart = minWeight + idx * binWidth;
+      let binEnd = minWeight + (idx + 1) * binWidth;
+      let binLabel = `[${binStart.toFixed(3)}, ${binEnd.toFixed(3)})`;
+      // only shows weight range label on every other bin
+      if (idx % 2 == 0){
+        mapping[idx].set(binLabel, hist[idx]); // maps bin range to frequency
+      }
+      else{
+        mapping[idx].set('', hist[idx]);
+      }
+    }
+
+    let text = 'Frequency of original FP64 weights before quantization';
+    let histWeights = new AppendingHistogramChart(mapping, text);
+    let title = 'FP64 Weights: Frequency distribution';
+    let weights_result = histWeights.showKLHistogram('histDivTrainN', title);
+
+    // Calculate mean weight
+    let meanWeight = fp64Weights.reduce((sum, weight) => sum + weight, 0) / fp64Weights.length;
+
+    weights_result += `&nbsp;Total FP64 weights: ${fp64Weights.length}<BR>`;
+    weights_result += `&nbsp;Min weight: ${minWeight.toFixed(6)}<BR>`;
+    weights_result += `&nbsp;Max weight: ${maxWeight.toFixed(6)}<BR>`;
+    weights_result += `&nbsp;Mean weight: ${meanWeight.toFixed(6)}<BR>`;
+    weights_result += `&nbsp;Weight range: ${weightRange.toFixed(6)}<BR>`;
+
+    let element = document.getElementById("KLdivergenceDiv");
+    element.innerHTML = weights_result;
+
+    userHasInteracted();
+  });
+
+  // create histogram of FP64 weights frequency when "FP 64 Weight Histogram" button is clicked
+  d3.select("#data-nn-quant-weights-histogram-button").on("click", () => {
+    // reset the visualization
+    reset_analysis_vis();
+    let precision = 64; // stores quantization precision
+    let quantMethod = ""; // stores quantization method
+
+    // Collect all FP64 weights into an array
+    let quantizedWeights: number[] = [];
+    for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+      let currentLayer = network[layerIdx];
+      for (let i = 0; i < currentLayer.length; i++) {
+        let node = currentLayer[i];
+        for (let j = 0; j < node.inputLinks.length; j++) {
+          let link = node.inputLinks[j];
+          quantizedWeights.push(link.weight);
+          precision = link.numBits;
+          quantMethod = link.quantMethod;
+        }
+      }
+    }
+    // Handles if the weights have not been quantized
+    if (quantMethod === ""){
+      quantMethod = "None";
+    }
+    // Handle empty case
+    if (quantizedWeights.length === 0) {
+      let element = document.getElementById("KLdivergenceDiv");
+      element.innerHTML = "No quantized weights found in the network.";
+      userHasInteracted();
+      return; 
+    }
+
+    // Find min and max for histogram bins
+    let minWeight = Math.min(...quantizedWeights);
+    let maxWeight = Math.max(...quantizedWeights);
+    let weightRange = maxWeight - minWeight;
+    
+    // Set number of bins based on precision
+    let numBins;
+    if (precision <= 4) {
+      numBins = Math.pow(2, precision);
+    } else {
+      numBins = 100;
+    }
+    // Not sure if this is a good idea: If all weights are the same, only has 1 bin
+    if (weightRange === 0) {
+      numBins = 1;
+    }
+    let binWidth = weightRange / numBins;
+    let hist = new Array(numBins); // creates new array with numBins slots
+    hist.fill(0); // initialize all bins with zero frequency
+
+    // Fill histogram
+    for (let i = 0; i < quantizedWeights.length; i++) {
+      let binIndex = binWidth === 0 ? 0 : Math.floor((quantizedWeights[i] - minWeight) / binWidth);
+      // Handle edge case where weight equals maxWeight
+      if (binIndex >= numBins) {
+        binIndex = numBins - 1;
+      }
+      hist[binIndex]++; // adds 1 to bin the weight falls into
+    }
+
+    // Prepare the histogram plotting data
+    let mapping = [];
+    for (let idx = 0; idx < hist.length; idx++) {
+      mapping[idx] = new Map<string, number>();
+      let binStart = minWeight + idx * binWidth;
+      let binEnd = minWeight + (idx + 1) * binWidth;
+      let binLabel = `[${binStart.toFixed(3)}, ${binEnd.toFixed(3)})`;
+      // only shows weight range label on every other bin or every bin if 16 bins or less
+      if (idx % 2 == 0 || numBins <= 16){
+        mapping[idx].set(binLabel, hist[idx]); // maps bin range to frequency
+      }
+      else{
+        mapping[idx].set('', hist[idx]);
+      }
+    }
+
+    let text = 'Frequency of Quantized Weights';
+    let histWeights = new AppendingHistogramChart(mapping, text);
+    let title = 'Quantized Weights: Frequency distribution';
+    let weights_result = histWeights.showKLHistogram('histDivTrainN', title);
+
+    // Calculate mean weight
+    let meanWeight = quantizedWeights.reduce((sum, weight) => sum + weight, 0) / quantizedWeights.length;
+    
+    weights_result += `&nbsp;Precision: ${precision}<BR>`;
+    weights_result += `&nbsp;Quantization Method: ${quantMethod}<BR>`;
+    weights_result += `&nbsp;Total FP${precision} weights: ${quantizedWeights.length}<BR>`;
+    weights_result += `&nbsp;Min weight: ${minWeight.toFixed(6)}<BR>`;
+    weights_result += `&nbsp;Max weight: ${maxWeight.toFixed(6)}<BR>`;
+    weights_result += `&nbsp;Mean weight: ${meanWeight.toFixed(6)}<BR>`;
+    weights_result += `&nbsp;Weight range: ${weightRange.toFixed(6)}<BR>`;
+
+    let element = document.getElementById("KLdivergenceDiv");
+    element.innerHTML = weights_result;
+
+    userHasInteracted();
+  });
 }
 
 function updateBiasesUI(network: nn.Node[][]) {
@@ -2008,16 +2184,458 @@ function updateDecisionBoundary(network: nn.Node[][], firstTime: boolean) {
   }
 }
 
-function getLoss(network: nn.Node[][], dataPoints: Example2D[]): number {
+function getLoss(network: nn.Node[][], dataPoints: Example2D[], quantMethod?: string, targetBits?: number): number {
   let loss = 0;
+  const shouldQuantize = quantMethod != null && targetBits != null;
   for (let i = 0; i < dataPoints.length; i++) {
     let dataPoint = dataPoints[i];
     let input = constructInput(dataPoint.x, dataPoint.y);
-    let output = nn.forwardProp(network, input);
+    let output = nn.forwardProp(network, input, shouldQuantize, quantMethod, targetBits);
     loss += nn.Errors.SQUARE.error(output, dataPoint.label);
   }
   return loss / dataPoints.length;
 }
+
+// Returns array of predictions (1 or -1) for each input in a data set
+function predict(network: nn.Node[][], dataPoints: Example2D[], quantMethod?: string, targetBits?: number): number[] {
+  let predictions: number[] = [];
+  const shouldQuantize = quantMethod != null && targetBits != null;
+  for (let i = 0; i < dataPoints.length; i++) {
+    let dataPoint = dataPoints[i];
+    let input = constructInput(dataPoint.x, dataPoint.y);
+    let output = nn.forwardProp(network, input, shouldQuantize, quantMethod, targetBits);
+    output = output > 0 ? 1 : -1;
+    predictions.push(output)
+  }
+  return predictions
+}
+
+// Global variable determining if range is fixed
+export let fixed = true;
+//Global variable determining target bits to quantize to
+export let targetBits = 64;
+//Global variable determining method of quantization
+export let quantMethod = 'max-abs'; // default to max-abs
+
+// Generic function to quantize a single number using either max-abs or min-max method
+export function quantizeNumber(value: number, targetBits: number, quantMethod: string): number {
+  const n = Math.pow(2, targetBits); // maximum number able to be represented by target bits
+  let s = 0; // scale factor
+  let z = 0; // zero-point
+  let M = 0; // upper bound of range
+  let m = 0; // lower bound of range
+
+  if (quantMethod == 'max-abs') {
+    let R = fixed ? 5 : Math.abs(value); // max absolute value
+    M = R; // symmetrical bound
+    s = (n - 1) / R;
+    z = 0; // zero-point is 0 for symmetrical quantization
+    // Apply quantization
+    const clamped = Math.max(Math.min(value, M), -M);
+    return Math.round(s * clamped + z) / s;
+  } else { // min-max quantization
+    m = -5;
+    M = 4;
+    s = (n - 1) / (M - m);
+    z = m * (1 - n) / (M - m);
+    // Apply quantization
+    const clamped = Math.max(Math.min(value, M), m);
+    return (Math.round(s * clamped + z) - z) / s;
+  }
+}
+// Generic function to quantize an array of numbers using either max-abs or min-max method
+export function quantizeArray(data: number[], targetBits: number, quantMethod: string): { quantizedData: number[], errors: number[] } {
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Data must be a non-empty array');
+  }
+
+  const n = Math.pow(2, targetBits); // maximum number able to be represented by target bits
+  let s = 0; // scale factor
+  let z = 0; // zero-point
+  let M = 0; // upper bound of range
+  let m = 0; // lower bound of range
+  let quantizedData: number[] = [];
+
+  if (quantMethod == 'max-abs') {
+    let R = fixed ? 5 : Math.max(...data.map(x => Math.abs(x))); // max absolute value
+    M = R; // symmetrical bound
+    s = (n - 1) / R;
+    z = 0; // zero-point is 0 for symmetrical quantization
+    // Apply quantization
+    quantizedData = data.map(x => {
+      const clamped = Math.max(Math.min(x, M), -M);
+      return Math.round(s * clamped + z) / s;
+    });
+  } else { // min-max quantization
+    m = -5;
+    M = 4;
+    s = (n - 1) / (M - m);
+    z = m * (1 - n) / (M - m);
+    // Apply quantization
+    quantizedData = data.map(x => {
+      const clamped = Math.max(Math.min(x, M), m);
+      return (Math.round(s * clamped + z) - z) / s;
+    });
+  }
+
+  // Calculate errors between original fp64 values and quantized values
+  const errors = data.map((x, i) => x - quantizedData[i]);
+  return { quantizedData, errors };
+}
+
+// Uses quantizeArray function to quantize the biases and returns quantizes biases, quantization errors, and max and min biases
+export function quantizeBiases(network: nn.Node[][], targetBits: number, quantMethod: string) {
+  // Collect all biases into an array
+  let data: number[] = [];
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      data.push(node.fp64Bias);
+    }
+  }
+  // find max and min of biases
+  let maxBias = Math.max(...data);
+  let minBias = Math.min(...data);
+
+  // Quantize the biases
+  let { quantizedData, errors } = quantizeArray(data, targetBits, quantMethod);
+
+  // Update the network's biases with quantized values
+  let biasIndex = 0;
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      node.bias = quantizedData[biasIndex];
+      biasIndex++;
+    }
+  }
+
+  return { biasQuantizedData: quantizedData, biasErrors: errors , maxBias, minBias};
+}
+
+// Performs inference after quantization and computes average error, accuracy, loss 
+export function quantizationInference(network: nn.Node[][], targetBits: number, quantMethod: string) {
+  // Quantizes all the model's biases based on an inputted precision
+  let { biasErrors, maxBias, minBias } = quantizeBiases(network, targetBits, quantMethod);
+  
+  // Quantizes all the model's weights based on an inputted precision and collects errors
+  let allWeightErrors: number[] = [];
+  let weightErrors: number[] = []; // stores a single node's weight quantization errors
+  let minWeight = 0;
+  let maxWeight = 0;
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      ({  weightErrors, maxWeight, minWeight } = node.quantizeWeights(targetBits, quantMethod)); // quantize weights
+      allWeightErrors.push(...weightErrors);
+    }
+  }
+  
+  // Computes accuracy on train data and test data
+  let trainCorrect = 0;
+  let trainPredictions = predict(network, trainData, quantMethod, targetBits);
+  for (let i = 0; i < trainData.length; i++) {
+    let dataPoint = trainData[i];
+    if (trainPredictions[i] == dataPoint.label){
+      trainCorrect++;
+    }
+  }
+
+  let testCorrect = 0;
+  let testPredictions = predict(network, testData, quantMethod, targetBits);
+  for (let i = 0; i < testData.length; i++) {
+    let dataPoint = testData[i];
+    if (testPredictions[i] == dataPoint.label){ 
+      testCorrect++;
+    }
+  }
+
+  let trainAccuracy = (trainCorrect / trainData.length) * 100;
+  let testAccuracy = (testCorrect / testData.length) * 100;
+
+  // Computes loss after inference on train and test data
+  lossTrain = getLoss(network, trainData, quantMethod, targetBits);
+  lossTest = getLoss(network, testData, quantMethod, targetBits);
+
+  // Calculates mean absolute error of quantization for biases and weights
+  let meanAbsErrorBiases = biasErrors.reduce((sum, error) => sum + Math.abs(error), 0) / biasErrors.length;
+  let meanAbsErrorWeights = allWeightErrors.reduce((sum, error) => sum + Math.abs(error), 0) / allWeightErrors.length;
+ // UI display
+  let mse_result: string;
+  mse_result = '&nbsp; Precision: FP' + targetBits + '<BR>';
+  mse_result += '&nbsp; MSE Train loss: ' + (Math.round(lossTrain * 1000) / 1000).toString() + ', ';
+  mse_result += ' MSE Test loss: ' + (Math.round(lossTest * 1000) / 1000).toString() + '<BR>';
+  mse_result += '&nbsp; Train Accuracy: ' + trainAccuracy.toFixed(2) + '%, ';
+  mse_result += ' Test Accuracy: ' + testAccuracy.toFixed(2) + '%<BR>';
+  mse_result += '&nbsp; Mean Absolute Quantization Error (Biases): ' + meanAbsErrorBiases.toFixed(6) + '<BR>';
+  mse_result += '&nbsp; Mean Absolute Quantization Error (Weights): ' + meanAbsErrorWeights.toFixed(6) + '<BR>';
+  //mse_result += '&nbsp; Max Bias: ' + maxBias.toFixed(6) + ', ';
+  //mse_result += ' Min Bias: ' + minBias.toFixed(6) +'<BR>';
+  //mse_result += '&nbsp; Max Weight: ' + maxWeight.toFixed(6) + ', ';
+  //mse_result += ' Min Weight: ' + minWeight.toFixed(6) +'<BR>';
+  let element = document.getElementById("accuracyDiv");
+  element.innerHTML = mse_result;
+
+  // returns test loss, test accuracy, and mean absolute error for biases and weights
+  return {lossTest, testAccuracy, meanAbsErrorBiases, meanAbsErrorWeights};
+}
+
+// Sets global variable quantMethod based on selected quantization method
+d3.select("#quantize-method").on("change", function() {
+  const selectedMethod = this.value;
+  if (selectedMethod) {
+    quantMethod = selectedMethod;
+    console.log("Quantization method:", selectedMethod);
+  }
+});
+
+// When dropdown menu is changed, feed selectedValue as targetBits number for quantization inference
+d3.select("#quantize-select").on("change", function () {
+  const selectedValue = +this.value; // convert string to number
+  console.log("Target bits:", selectedValue);
+  if (selectedValue > 0) { // set the "select precision" option to a value of zero which should not be quantized
+    targetBits = selectedValue
+    quantizationInference(network, targetBits, quantMethod);
+  }
+});
+
+/*
+The following functions are used for investigating the effects of type of dataset, 
+number of features, type of features, number of layers, number of nodes, quantization precision,
+and quantization method on test loss for network. Had to create new functions that are independent
+of and don't affect the current state of the UI configuration.
+*/
+
+// creates input vector based on a set of features
+function constructInputForFeatures(x, y, featureNames) {
+  let input = [];
+  for (let featureName of featureNames) {
+    if (INPUTS[featureName]) {
+      input.push(INPUTS[featureName].f(x, y));
+    }
+  }
+  return input;
+}
+// trains any network (similar to oneStep function but for any network)
+function trainOneEpoch(net, trainData, featureSet, learningRate = 0.03, regularizationRate = 0, batchSize = 10, errorFunc = nn.Errors.SQUARE) {
+  for (let i = 0; i < trainData.length; i++) {
+    const point = trainData[i];
+    const input = constructInputForFeatures(point.x, point.y, featureSet);
+
+    nn.forwardProp(net, input);
+    nn.backProp(net, point.label, errorFunc);
+
+    if ((i + 1) % batchSize === 0) { // update weights after a full batch
+      nn.updateWeights(net, learningRate, regularizationRate);
+    }
+  }
+  // Update weights for any remaining data
+  nn.updateWeights(net, learningRate, regularizationRate);
+
+   // Storing original FP64 weights for reference after training so they are still accessible after quantization
+  for (let layerIdx = 1; layerIdx < net.length; layerIdx++) {
+    let currentLayer = net[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      for (let j = 0; j < node.inputLinks.length; j++) {
+        let link = node.inputLinks[j];
+        link.fp64Weight = link.weight
+      }
+    }
+  }
+
+  // Storing original FP64 biases
+  for (let layerIdx = 1; layerIdx < net.length; layerIdx++) { 
+    let currentLayer = net[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      node.fp64Bias = node.bias
+    }
+  }
+}
+// sets which features are enabled without relying on UI
+function setFeaturesForExperiment(featureNames: string[]): void {
+  for (let inputName in INPUTS) state[inputName] = false;
+  for (let featureName of featureNames) state[featureName] = true;
+}
+// gets loss for a given data set and feature set indpendent of features selected in UI
+function getLossForFeatures(network: nn.Node[][], dataPoints: Example2D[], featureSet: string[], quantMethod?: string, targetBits?: number): number {
+  let loss = 0;
+  const shouldQuantize = quantMethod != null && targetBits != null;
+  for (let i = 0; i < dataPoints.length; i++) {
+    let dataPoint = dataPoints[i];
+    let input = constructInputForFeatures(dataPoint.x, dataPoint.y, featureSet); // Use your function
+    let output = nn.forwardProp(network, input, shouldQuantize, quantMethod, targetBits);
+    loss += nn.Errors.SQUARE.error(output, dataPoint.label);
+  }
+  return loss / dataPoints.length;
+}
+// Quantization function to be used for experiments, returns loss and mean absolute error
+export function quantizationInferenceForFeatures(network: nn.Node[][], targetBits: number, featureSet, quantMethod: string, train_data, test_data) {
+  // Quantizes all the model's biases based on an inputted precision
+  let { biasErrors, maxBias, minBias } = quantizeBiases(network, targetBits, quantMethod);
+  
+  // Quantizes all the model's weights based on an inputted precision and collects errors
+  let allWeightErrors: number[] = [];
+  let weightErrors: number[] = []; // stores a single node's weight quantization errors
+  let minWeight = 0;
+  let maxWeight = 0;
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      ({  weightErrors, maxWeight, minWeight } = node.quantizeWeights(targetBits, quantMethod)); // quantize weights
+      allWeightErrors.push(...weightErrors);
+    }
+  }
+  
+  // Computes loss after inference on train and test data
+  lossTrain = getLossForFeatures(network, train_data, featureSet, quantMethod, targetBits);
+  lossTest = getLossForFeatures(network, test_data, featureSet, quantMethod, targetBits);
+
+  // Calculates mean absolute error of quantization for biases and weights
+  let meanAbsErrorBiases = biasErrors.reduce((sum, error) => sum + Math.abs(error), 0) / biasErrors.length;
+  let meanAbsErrorWeights = allWeightErrors.reduce((sum, error) => sum + Math.abs(error), 0) / allWeightErrors.length;
+
+  // returns test loss, test accuracy, and mean absolute error for biases and weights
+  return {lossTest, meanAbsErrorBiases, meanAbsErrorWeights};
+}
+// converts array to CSV and downloads it 
+function exportResultsToCSV(results, filename = 'experiment_results.csv') {
+  // Get column headers from the first item in results
+  const headers = Object.keys(results[0]);
+  
+  // Create CSV content
+  let csvContent = headers.join(',') + '\n';
+  
+  // Add rows of data
+  results.forEach(result => {
+    const row = headers.map(header => {
+      let value = result[header];
+      // Handle strings that have commas
+      if (typeof value === 'string' && value.includes(',')) {
+        value = `"${value}"`;
+      }
+      return value;
+    });
+    csvContent += row.join(',') + '\n';
+  });
+  
+  // Create and download file
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+/*
+runs experiments -- how type of dataset, number of features, type of features, number of layers,
+number of nodes, quantization precision, and quantization method impact test loss 
+*/
+export function experiment(){
+  const featureSets = [
+    ["x", "y"],           // (x1, x2)
+    ["xSquared", "ySquared"], // (x1^2, x2^2)
+    ["x","y", "xSquared", "ySquared"] // (x1, x2, x1^2, x2^2)
+  ];
+  const dataset_types = ["spiral", "gauss"];
+  //const dataset_types = ["csum-spiral", "csum-gauss"];
+  const quant_precisions = [64, 32, 16, 8, 4, 2, 1];
+  const quant_methods = ["max-abs","min-max"];
+  const numSamples = 500;
+  const trainRatio = 0.5;
+  const epochs = 100;
+
+  let lossTest = 0;
+
+  let results = [];
+  for (let dataset_name of dataset_types) {
+    const generator = datasets[dataset_name];
+    //const data = generator(numSamples, 0, 0, 256, 15); // last four arguments are default for noise level, trojans, and checksum modulo and precision
+    const data = (generator as any)(numSamples, 0, 0); // 3 parameters: num samples, noise, trojans
+    //const generator = backdoorDatasets[dataset_name];
+    //const data = generator(numSamples, 0, 0, 256, 15); // noise level, trojans=0 (no backdoor), checksum modulo, precision
+    console.log(`Generated ${data.length} points for ${dataset_name}`);
+    console.log(`Sample labels: ${data.slice(0, 10).map(d => d.label).join(', ')}`);
+    console.log(`Label distribution: +1: ${data.filter(d => d.label === 1).length}, -1: ${data.filter(d => d.label === -1).length}`);
+    
+    // Shuffle the data before splitting
+    shuffle(data);
+    console.log(`After shuffle - Sample labels: ${data.slice(0, 10).map(d => d.label).join(', ')}`);
+    
+    const splitIndex = Math.floor(data.length * trainRatio);
+    const trainData = data.slice(0, splitIndex);
+    const testData = data.slice(splitIndex);
+
+    // builds networks of varying sizes
+    for (let num_layers = 1; num_layers <= 4; num_layers++) {
+      for (let num_nodes = 2; num_nodes <= 6; num_nodes += 2) {
+        for (let featureSet of featureSets){
+          //setFeaturesForExperiment(featureSet);
+          let hiddenLayers = Array(num_layers).fill(num_nodes);
+          let shape = [featureSet.length, ...hiddenLayers, 1];
+          let activation = nn.Activations.TANH;
+          let testNetwork = nn.buildNetwork(
+            shape,
+            activation,
+            activation,
+            null,
+            featureSet,
+            false
+          );
+          //console.log("Sample labels:", data.slice(0, 10).map(d => d.label));
+          //console.log("Label distribution: +1:", data.filter(d => d.label === 1).length, ", -1:", data.filter(d => d.label === -1).length);
+          // Train network
+          for (let epoch = 0; epoch < epochs; epoch++ ){
+            trainOneEpoch(testNetwork, trainData, featureSet); // train with default values for learning rate, regularization rate, batch size, and error function
+            if (epoch % 10 == 0){
+              const trainLoss = getLossForFeatures(testNetwork, trainData, featureSet);
+              const testLoss = getLossForFeatures(testNetwork, testData, featureSet);
+              console.log(`Epoch ${epoch}: Train Loss = ${trainLoss}, Test Loss = ${testLoss}`);
+            }
+          }
+          //debugging 
+          console.log('Current feature set:', featureSet);
+          let sampleInputs = testData.slice(0, 5).map(pt => constructInputForFeatures(pt.x, pt.y, featureSet));
+          console.log('Sample inputs:', sampleInputs);
+          let sampleOutputs = sampleInputs.map(input => nn.forwardProp(testNetwork, input));
+          console.log('Sample outputs after training:', sampleOutputs);
+          console.log('Sample labels:', testData.slice(0, 5).map(pt => pt.label));
+  
+            // loop for quantization and inference
+            for (let precision of quant_precisions){
+              for (let method of quant_methods){
+                const preQuantLoss = getLossForFeatures(testNetwork, testData, featureSet);
+                console.log("Loss before quantization:", preQuantLoss);
+                ({ lossTest } = quantizationInferenceForFeatures(testNetwork, precision, featureSet, method, trainData, testData));
+                console.log("Loss after quantization:", lossTest);
+                results.push({
+                  dataset: dataset_name, 
+                  numLayers: num_layers, 
+                  numNodes: num_nodes, 
+                  featureSet: featureSet.join(","), 
+                  numFeatures: featureSet.length,
+                  quantizationPrecision: precision,
+                  quantizationMethod: method,
+                  testLoss: lossTest
+                });
+              }
+            } 
+        }
+      }
+    }
+  }
+  setFeaturesForExperiment(["x", "y"]); // restores original default features (x1, x2)
+  exportResultsToCSV(results);
+}
+experiment()
 
 function updateUI(firstStep = false) {
   // Update the links visually.
@@ -2107,6 +2725,27 @@ function oneStep(): void {
   //console.log("DEBUG: lossTrain=", lossTrain, " lossTest=", lossTest);
 
   updateUI();
+
+  // Storing original FP64 weights for reference after training so they are still accessible after quantization
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) {
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      for (let j = 0; j < node.inputLinks.length; j++) {
+        let link = node.inputLinks[j];
+        link.fp64Weight = link.weight
+      }
+    }
+  }
+
+  // Storing original FP64 biases
+  for (let layerIdx = 1; layerIdx < network.length; layerIdx++) { 
+    let currentLayer = network[layerIdx];
+    for (let i = 0; i < currentLayer.length; i++) {
+      let node = currentLayer[i];
+      node.fp64Bias = node.bias
+    }
+  }
 }
 
 export function getOutputWeights(network: nn.Node[][]): number[] {
@@ -2123,6 +2762,7 @@ export function getOutputWeights(network: nn.Node[][]): number[] {
   }
   return weights;
 }
+
 /** Added */
 // set network weights
 export function setOutputWeights(network: nn.Node[][], weights: number[]): boolean {
@@ -2540,7 +3180,7 @@ function change_xy_point(mod_input, index_point) {
         return;
       }
       // sanity check
-      if (INVERSEINPUTS[inputName].label != 'X_1' || INVERSEINPUTS[inputName].label != 'X_2') {
+      if (INVERSEINPUTS[inputName].label != 'X_1' && INVERSEINPUTS[inputName].label != 'X_2') {
         console.log('ERROR: there is a problem with encoding INVERSEINPUTS');
       }
     }
@@ -2622,10 +3262,10 @@ function simulationStarted() {
   parametersChanged = false;
 }
 
+
 drawDatasetThumbnails();
 initTutorial();
 makeGUI();
 generateData(true);
 reset(true);
 hideControls();
-

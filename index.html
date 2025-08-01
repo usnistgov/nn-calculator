@@ -42,7 +42,7 @@ limitations under the License.
   <title>A Neural Network Calculator for Designing Trojan Detection Algorithms</title>
   
 
-  <link rel="stylesheet" href="bundle.css" type="text/css">
+  <link rel="stylesheet" href="bundle.css" type="text/css"> <!--linking external stylesheet-->
   <script src="lib.js"></script>
 
   <!-- TODO replace with local libraries so that it can run without internet -->
@@ -269,6 +269,35 @@ limitations under the License.
             <input class="mdl-slider mdl-js-slider" type="range" id="trojan" min="0" max="10" step="1">
           </p>
         </div>
+        <!-- Dropdown menu for choosing quantization method -->
+        <div class="ui-quant-method">
+          <label for="quantize-method">
+            Quantization Method:
+            <select id="quantize-method" class="quant-dropdown">
+              <option value="">Select Method</option>
+              <option value="max-abs">Max-Abs</option>
+              <option value="min-max">Min-Max</option>
+            </select>
+          </label>
+        </div>
+        <!-- Dropdown menu for choosing quantization precision-->
+        <div class="ui-quant">
+          <label for="quantize-select">
+            Quantize to:
+            <select id="quantize-select" class="quant-dropdown">
+              <option value="0">Select Precision</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="16">16</option>
+              <option value="32">32</option>
+              <option value="64">64</option>
+            </select>
+          </label>
+        </div>
+        
+        
         <!--
        <div class="ui-percBackdoor">
          <label for="percBackdoor">Backdoor [%]:&nbsp;&nbsp;<span class="value">XX</span></label>
@@ -277,6 +306,13 @@ limitations under the License.
          </p>
        </div>
        -->
+
+        <button class="basic-button" id="data-nn-quant-weights-histogram-button" title="Quantized Weights Histogram">
+        Quantized Weights Histogram
+        </button>
+        <button class="basic-button" id="data-nn-weights-histogram-button" title="FP64 Weights Histogram">
+          FP64 Weights Histogram
+          </button>
         <button class="basic-button" id="data-nn-csum_signature-button" title="CSUM Signature">
           CSUM Signature
         </button>
@@ -289,7 +325,6 @@ limitations under the License.
         <button class="basic-button" id="data-nn-robust-button" title="Robustness to Backdoor">
           Robust to Backdoor
         </button>
-
         <button class="basic-button" id="data-nn-infer-button" title="Inference with current data">
           Inference
         </button>

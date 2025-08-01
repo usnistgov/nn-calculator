@@ -252,7 +252,7 @@ export class AppendingNetworkEfficiency {
       let input = playground.constructInput(point.x, point.y);
       //console.log('point:'+i +' val:' + input.toString() + ', label:' + point.label);
       // compute the output configuration at each layer per point
-      configPts = nn.forwardNetEval(network, input);
+      configPts = nn.forwardNetEval(network, input, true);
       let output = nn.forwardProp(network, input);
       // assign hard label based on the predicted output probability
       let label: string;

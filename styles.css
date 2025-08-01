@@ -658,11 +658,46 @@ g.column rect {
 #main-part .data.column p.slider {
   margin: 0 -25px 20px;
 }
+/*
 
+.ui-quant, .ui-quant-method {
+  margin: 10px 0;
+  width: 100%;
+}
+
+.ui-quant label, .ui-quant-method label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  width: 100%;
+}
+
+.quant-dropdown {
+  padding: 4px 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  width: 100%;
+  max-width: 200px;
+  height: 30px;
+  cursor: pointer;
+}
+
+.quant-dropdown:focus {
+  border-color: #183D4E;
+  outline: none;
+}
+
+.ui-quant-method {
+  margin-top: 5px;
+}
+*/
 #main-part .basic-button {
   font-family: "Roboto", "Helvetica", "Arial", sans-serif;
   margin-top: 25px;
-  height: 34px;
+  height: 50px;
   margin-right: 0;
   width: 100%;
   display: block;

@@ -17,6 +17,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
 import {simpleChecksum} from "./checksum";
+import { fixed } from "./playground"; // determines if quantization is performed with a fixed range
+import { targetBits } from "./playground"; 
+import { quantizeNumber, quantizeArray, quantMethod } from './playground';
 
 /**
  * A node in a neural network. Each node has a state
@@ -28,6 +31,7 @@ export class Node {
   /** List of input links. */
   inputLinks: Link[] = [];
   bias = 0.1;
+  fp64Bias = 0; // stores original fp64 bias before quantization
   /** List of output links. */
   outputs: Link[] = [];
   totalInput: number;
@@ -62,16 +66,64 @@ export class Node {
   }
 
   /** Recomputes the node's output and returns it. */
-  updateOutput(): number {
+  updateOutput(shouldQuantize: boolean = false, quantMethod?: string, targetBits?: number): number {
     // Stores total input into the node.
     this.totalInput = this.bias;
     for (let j = 0; j < this.inputLinks.length; j++) {
       let link = this.inputLinks[j];
       this.totalInput += link.weight * link.source.output;
     }
-    this.output = this.activation.output(this.totalInput);
+    
+    if (shouldQuantize) {
+      if (quantMethod == null || targetBits == null) {
+        throw new Error("quantMethod and targetBits must be provided when shouldQuantize is true.");
+      }
+      //console.log(`Total input before quantization: ${this.totalInput}`);
+      // Quantize total input
+      this.totalInput = quantizeNumber(this.totalInput, targetBits, quantMethod);
+      //console.log(`Total input after quantization: ${this.totalInput}`);
+      
+      // Get activation output
+      this.output = this.activation.output(this.totalInput);
+      //console.log(`After activation (before output quantization): ${this.output}`);
+      
+      // Quantize activation output
+      this.output = quantizeNumber(this.output, targetBits, quantMethod);
+      //console.log(`Final quantized output: ${this.output}`);
+    } else {
+      // Get activation output without quantization
+      this.output = this.activation.output(this.totalInput);
+    }
+    
     return this.output;
   }
+
+  // Quantizes weights using quantizeArray function and returns quantized weights, quantization errors, and max and min weight
+  quantizeWeights(targetBits: number, quantMethod: string): { weightQuantizedData: number[], weightErrors: number[], maxWeight: number, minWeight: number } { 
+    let data: number[] = []; 
+    // Adds all FP64 weights to data array
+    for (let j = 0; j < this.inputLinks.length; j++) {
+      let link = this.inputLinks[j];
+      data.push(link.fp64Weight)
+    }
+
+    // find max and min of weights
+    let maxWeight = Math.max(...data);
+    let minWeight = Math.min(...data);
+
+    // Use the generic quantization function
+    let { quantizedData, errors } = quantizeArray(data, targetBits, quantMethod);
+
+    // Update the actual link weights with quantized values
+    for (let j = 0; j < this.inputLinks.length; j++) {
+      this.inputLinks[j].weight = quantizedData[j]; // updates link weight
+      this.inputLinks[j].numBits = targetBits; // updates link weight precision/number of bits
+      this.inputLinks[j].quantMethod = quantMethod; // updates link weight quantization method
+    }
+
+    return { weightQuantizedData: quantizedData, weightErrors: errors, maxWeight, minWeight };
+  } 
+
   /////////////////////////////////
   /** Recomputes the node's output and returns it. */
   updateTotalInput(): number {
@@ -315,6 +367,9 @@ export class Link {
   source: Node;
   dest: Node;
   weight = Math.random() - 0.5;
+  fp64Weight = 0; // stores original fp64 weight before quantization
+  numBits = 64; // stores current bit representation of link weight
+  quantMethod = "";
   isDead = false;
   /** Error derivative with respect to this weight. */
   errorDer = 0;
@@ -406,7 +461,7 @@ export function buildNetwork(
  *     nodes in the network.
  * @return The final output of the network.
  */
-export function forwardProp(network: Node[][], inputs: number[]): number {
+export function forwardProp(network: Node[][], inputs: number[], shouldQuantize: boolean = false, quantMethod?: string, targetBits?: number): number {
   let inputLayer = network[0];
   if (inputs.length !== inputLayer.length) {
     throw new Error("The number of inputs must match the number of nodes in" +
@@ -422,7 +477,7 @@ export function forwardProp(network: Node[][], inputs: number[]): number {
     // Update all the nodes in this layer.
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      node.updateOutput();
+      node.updateOutput(shouldQuantize, quantMethod, targetBits);
     }
   }
   return network[network.length - 1][0].output;
@@ -572,7 +627,7 @@ export function getOutputNode(network: Node[][]) {
  * @param network - network architecture
  * @param inputs - (x,y) points that are turned into features at each layer
  */
-export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
+export function forwardNetEval(network: Node[][], inputs: number[], shouldQuantize: boolean = false): string [] {
   let inputLayer = network[0];
   if (inputs.length !== inputLayer.length) {
     throw new Error("The number of inputs must match the number of nodes in" +
@@ -590,7 +645,7 @@ export function forwardNetEval(network: Node[][], inputs: number[]): string [] {
     config[layerIdx - 1] = '';
     for (let i = 0; i < currentLayer.length; i++) {
       let node = currentLayer[i];
-      let temp = node.updateOutput().valueOf();
+      let temp = node.updateOutput(shouldQuantize).valueOf();
       if (temp > 0)
         config[layerIdx - 1] = config[layerIdx - 1] + '1';
       else
